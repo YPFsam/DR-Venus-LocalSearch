@@ -244,7 +244,7 @@ DR-Venus builds on several strong open-source foundations:
   title  = {DR-Venus: Towards Frontier Edge-Scale Deep Research Agents
             with Only 10K Open Data},
   author = {Venus Team, Sunhao Dai, Yong Deng, Jinzhen Lin,
-            Yucheng Song, Guoqing Wang, Xiaofeng Wu, Yuqi Zhou,
+            Yusheng Song, Guoqing Wang, Xiaofeng Wu, Yuqi Zhou,
             Shuo Yang, Zhenzhe Ying, Zhanwei Zhang,
             Changhua Meng, Weiqiang Wang},
   year   = {2026},
