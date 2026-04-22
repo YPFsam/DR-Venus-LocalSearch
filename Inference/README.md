@@ -2,9 +2,7 @@
 
 This guide shows how to set up the environment and run inference.
 
-## Inference Quick Start
 
-This guide provides instructions for setting up the environment and running inference scripts located in the [inference](./inference/) folder.
 
 ### 1. Environment Setup
 - Recommended Python version: **3.12.0** (using other versions may cause dependency issues).
