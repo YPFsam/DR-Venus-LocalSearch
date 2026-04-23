@@ -20,8 +20,8 @@
   <a href="https://huggingface.co/collections/inclusionAI/dr-venus">
     <img src="https://img.shields.io/badge/%F0%9F%A4%97%20HF-Collection-FFD21E" alt="Hugging Face Collection">
   </a>
-  <a href="#">
-    <img src="https://img.shields.io/badge/arXiv-Coming%20Soon-b31b1b?logo=arxiv&logoColor=white" alt="arXiv">
+  <a href="https://arxiv.org/abs/2604.19859">
+    <img src="https://img.shields.io/badge/arXiv-2604.19859-b31b1b?logo=arxiv&logoColor=white" alt="arXiv">
   </a>
 </p>
 
@@ -240,14 +240,11 @@ DR-Venus builds on several strong open-source foundations:
 ## 📝 Citation
 
 ```bibtex
-@misc{dr_venus_2026,
-  title  = {DR-Venus: Towards Frontier Edge-Scale Deep Research Agents
-            with Only 10K Open Data},
-  author = {Venus Team, Sunhao Dai, Yong Deng, Jinzhen Lin,
-            Yusheng Song, Guoqing Wang, Xiaofeng Wu, Yuqi Zhou,
-            Shuo Yang, Zhenzhe Ying, Zhanwei Zhang,
-            Changhua Meng, Weiqiang Wang},
-  year   = {2026},
+@article{venus2026drvenus,
+  title={DR-Venus: Towards Frontier Edge-Scale Deep Research Agents with Only 10K Open Data},
+  author={Venus Team and Dai, Sunhao and Deng, Yong and Lin, Jinzhen and Song, Yusheng and Wang, Guoqing and Wu, Xiaofeng and Zhou, Yuqi and Yang, Shuo and Ying, Zhenzhe and Zhang, Zhanwei and Meng, Changhua and Wang, Weiqiang},
+  journal={arXiv preprint arXiv:2604.19859},
+  year={2026}
 }
 ```
 
