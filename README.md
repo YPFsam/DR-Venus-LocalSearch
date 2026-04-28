@@ -55,7 +55,7 @@
   </tr>
   <tr>
     <td><b>Training Data</b></td>
-    <td>Open-data only (~10K trajectories)</td>
+    <td>Open-data only (<a href="https://github.com/RedSearchAgent/REDSearcher">REDSearcher Data</a>)</td>
   </tr>
   <tr>
     <td><b>Tool Protocol</b></td>
@@ -72,8 +72,8 @@
 </table>
 
 ## 🔥 News
-
-- **`2026-04-23`** &ensp; Our technical report is now available on [arXiv](https://arxiv.org/abs/2604.19859).
+- **`2026-04-24`** &ensp; Released model checkpoints of GGUF version: [`DR-Venus-4B-SFT-GGUF`](https://huggingface.co/inclusionAI/DR-Venus-4B-SFT-GGUF) and [`DR-Venus-4B-RL-GGUF`](https://huggingface.co/inclusionAI/DR-Venus-4B-RL-GGUF).
+- **`2026-04-23`** &ensp; Our technical report is now available on [arXiv](https://arxiv.org/abs/2604.19859) and [HF Daily Paper](https://huggingface.co/papers/2604.19859) (**#3 Paper of the day**).
 - **`2026-04-22`** &ensp; Released model checkpoints: [`DR-Venus-4B-SFT`](https://huggingface.co/inclusionAI/DR-Venus-4B-SFT) and [`DR-Venus-4B-RL`](https://huggingface.co/inclusionAI/DR-Venus-4B-RL).
 - **`2026-04-22`** &ensp; Open-sourced the full training and inference codebase.
 
