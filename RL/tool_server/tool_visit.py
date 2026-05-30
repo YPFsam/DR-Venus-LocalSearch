@@ -1,239 +1,193 @@
 '''
-License: This code is adapted from Tongyi DeepResearch:
-https://github.com/Alibaba-NLP/DeepResearch/blob/main/inference/tool_visit.py
+Visit tool with local BM25 server support.
+
+When USE_LOCAL_SEARCH=true (default), retrieves documents from the local
+BM25 search server via HTTP instead of using Jina + LLM summarization.
+
+When USE_LOCAL_SEARCH=false, falls back to the original Jina + LLM pipeline.
 '''
 
-import json
-from dotenv import load_dotenv
 import os
-
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
+import time
 from typing import List, Union
-import requests
+
 from qwen_agent.tools.base import BaseTool, register_tool
-from tool_server.tool_prompt import EXTRACTOR_PROMPT 
-from openai import OpenAI
 
-from urllib.parse import urlparse, unquote
-import time 
-
-import tiktoken
-
-load_dotenv()
-
-VISIT_SERVER_TIMEOUT = int(os.getenv("VISIT_SERVER_TIMEOUT", 200))
-WEBCONTENT_MAXLENGTH = int(os.getenv("WEBCONTENT_MAXLENGTH", 150000))
-
-JINA_API_KEYS = os.getenv("JINA_API_KEYS", "")
-PROXY = os.getenv("PROXY", "")
-
-
-@staticmethod
-def truncate_to_tokens(text: str, max_tokens: int = 95000) -> str:
-    encoding = tiktoken.get_encoding("cl100k_base")
-    
-    tokens = encoding.encode(text)
-    if len(tokens) <= max_tokens:
-        return text
-    
-    truncated_tokens = tokens[:max_tokens]
-    return encoding.decode(truncated_tokens)
-
-OSS_JSON_FORMAT = """# Response Formats
-## visit_content
-{"properties":{"rational":{"type":"string","description":"Locate the **specific sections/data** directly related to the user's goal within the webpage content"},"evidence":{"type":"string","description":"Identify and extract the **most relevant information** from the content, never miss any important information, output the **full original context** of the content as far as possible, it can be more than three paragraphs.","summary":{"type":"string","description":"Organize into a concise paragraph with logical flow, prioritizing clarity and judge the contribution of the information to the goal."}}}}"""
+USE_LOCAL_SEARCH = os.environ.get("USE_LOCAL_SEARCH", "true").lower() == "true"
+LOCAL_SEARCH_SERVER_URL = os.environ.get("LOCAL_SEARCH_SERVER_URL", "http://localhost:8890")
 
 
 @register_tool('visit', allow_overwrite=True)
 class Visit(BaseTool):
-    # The `description` tells the agent the functionality of this tool.
     name = 'visit'
     description = 'Visit webpage(s) and return the summary of the content.'
-    # The `parameters` tell the agent what input parameters the tool has.
     parameters = {
         "type": "object",
         "properties": {
             "url": {
                 "type": ["string", "array"],
-                "items": {
-                    "type": "string"
-                    },
+                "items": {"type": "string"},
                 "minItems": 1,
                 "description": "The URL(s) of the webpage(s) to visit. Can be a single URL or an array of URLs."
-        },
-        "goal": {
+            },
+            "goal": {
                 "type": "string",
                 "description": "The goal of the visit for webpage(s)."
-        }
+            }
         },
         "required": ["url", "goal"]
     }
-    # The `call` method is the main function of the tool.
-    def call(self, params: Union[str, dict], **kwargs) -> str:
+
+    # ── Local BM25 server (stateless HTTP) ────────────────────────────────
+
+    def _visit_local(self, url: str, goal: str) -> str:
+        """Retrieve a document from the local BM25 server.
+
+        Only local:// URLs (returned by local search) are supported.
+        Regular http(s):// URLs are rejected with a clear error message.
+        """
+        import requests as req
+
+        # Extract passage ID from local:// URLs only
+        passage_id_match = re.match(r'local://(.+)', url)
+        if not passage_id_match:
+            return (
+                f"The useful information in {url} for user goal {goal} as follows: \n\n"
+                f"Evidence in page: \n"
+                f"Online access is disabled in local search mode. "
+                f"Only local:// URLs from search results are supported.\n\n"
+                f"Summary: \n"
+                f"Document not available. Use search tool to find local documents.\n\n"
+            )
+
+        passage_id = passage_id_match.group(1)
+
         try:
-            url = params["url"]
-            goal = params["goal"]
-            #print(f"url:{url},goal:{goal}")
-        except:
-            return "[Visit] Invalid request format: Input must be a JSON object containing 'url' and 'goal' fields"
+            resp = req.get(
+                f"{LOCAL_SEARCH_SERVER_URL}/document/{passage_id}",
+                timeout=10,
+            )
+            if resp.status_code == 404:
+                return (
+                    f"The useful information in local://{passage_id} for user goal {goal} as follows: \n\n"
+                    f"Evidence in page: \n"
+                    f"Document {passage_id} not found in local corpus.\n\n"
+                    f"Summary: \n"
+                    f"Document not found.\n\n"
+                )
+            resp.raise_for_status()
+            doc = resp.json()
+        except Exception as e:
+            return (
+                f"The useful information in local://{passage_id} for user goal {goal} as follows: \n\n"
+                f"Evidence in page: \n"
+                f"Error retrieving document: {e}\n\n"
+                f"Summary: \n"
+                f"Document retrieval failed.\n\n"
+            )
 
-        start_time = time.time()
-        
-        # Create log folder if it doesn't exist
-        log_folder = "log"
-        os.makedirs(log_folder, exist_ok=True)
+        text = doc.get("text", "")
+        title = doc.get("title", "")
+        evidence = text
+        summary = text[:500] if len(text) > 500 else text
 
-        if isinstance(url, str):
-            response = self.readpage_jina(url, goal)
-        else:
-            response = []
-            assert isinstance(url, List)
-            start_time = time.time()
-            for u in url: 
-                if time.time() - start_time > 900:
-                    cur_response = "The useful information in {url} for user goal {goal} as follows: \n\n".format(url=url, goal=goal)
-                    cur_response += "Evidence in page: \n" + "The provided webpage content could not be accessed. Please check the URL or file format." + "\n\n"
-                    cur_response += "Summary: \n" + "The webpage content could not be processed, and therefore, no information is available." + "\n\n"
-                else:
-                    try:
-                        cur_response = self.readpage_jina(u, goal)
-                    except Exception as e:
-                        cur_response = f"Error fetching {u}: {str(e)}"
-                response.append(cur_response)
-            response = "\n=======\n".join(response)
-        
-        print(f'Summary Length {len(response)}; Summary Content {response}')
-        return response.strip()
-        
-    def call_server(self, msgs, max_retries=2):
-        api_key = os.environ.get("API_KEY")
-        url_llm = os.environ.get("API_BASE")
-        model_name = os.environ.get("SUMMARY_MODEL_NAME", "")
-        client = OpenAI(
-            api_key=api_key,
-            base_url=url_llm,
+        return (
+            f"The useful information in local://{passage_id} "
+            f"(Title: {title}) for user goal {goal} as follows: \n\n"
+            f"Evidence in page: \n{evidence}\n\n"
+            f"Summary: \n{summary}\n\n"
         )
-        for attempt in range(max_retries):
-            try:
-                chat_response = client.chat.completions.create(
-                    model=model_name,
-                    messages=msgs,
-                    temperature=0.7
-                )
-                content = chat_response.choices[0].message.content
-                if content:
-                    try:
-                        json.loads(content)
-                    except:
-                        # extract json from string 
-                        left = content.find('{')
-                        right = content.rfind('}') 
-                        if left != -1 and right != -1 and left <= right: 
-                            content = content[left:right+1]
-                    return content
-            except Exception as e:
-                # print(e)
-                if attempt == (max_retries - 1):
-                    return ""
-                continue
 
+    # ── Original Jina + LLM pipeline ──────────────────────────────────────
 
-    def jina_readpage(self, url: str) -> str:
-        """
-        Read webpage content using Jina service.
-        
-        Args:
-            url: The URL to read
-            goal: The goal/purpose of reading the page
-            
-        Returns:
-            str: The webpage content or error message
-        """
-        max_retries = 3
-        timeout = 1000
-        
-        for attempt in range(max_retries):
-            headers = {
-                "Authorization": f"Bearer {JINA_API_KEYS}",
-            }
-            proxies = {
-                "http": f"{PROXY}",
-                "https": f"{PROXY}",
-            }
+    def _visit_online(self, url: str, goal: str) -> str:
+        import json
+        import requests
+        from dotenv import load_dotenv
+        from openai import OpenAI
+        from tool_server.tool_prompt import EXTRACTOR_PROMPT
+
+        load_dotenv()
+
+        JINA_API_KEYS = os.getenv("JINA_API_KEYS", "")
+        PROXY = os.getenv("PROXY", "")
+        VISIT_SERVER_MAX_RETRIES = int(os.getenv('VISIT_SERVER_MAX_RETRIES', 1))
+
+        def truncate_to_tokens(text: str, max_tokens: int = 95000) -> str:
             try:
-                response = requests.get(
-                    f"https://r.jina.ai/{url}",
-                    proxies=proxies,
-                    headers=headers,
-                    timeout=timeout
-                )
-                #print("response is :",response)
-                if response.status_code == 200:
-                    webpage_content = response.text
-                    return webpage_content
-                else:
-                    print("response.text is :",response.text)
+                import tiktoken
+                encoding = tiktoken.get_encoding("cl100k_base")
+                tokens = encoding.encode(text)
+                if len(tokens) <= max_tokens:
+                    return text
+                return encoding.decode(tokens[:max_tokens])
+            except ImportError:
+                return text[:max_tokens * 4]
+
+        def jina_readpage(url: str) -> str:
+            for attempt in range(3):
+                headers = {"Authorization": f"Bearer {JINA_API_KEYS}"}
+                proxies = {"http": PROXY, "https": PROXY}
+                try:
+                    response = requests.get(
+                        f"https://r.jina.ai/{url}",
+                        proxies=proxies, headers=headers, timeout=1000
+                    )
+                    if response.status_code == 200:
+                        return response.text
                     raise ValueError("jina readpage error")
-            except Exception as e:
-                time.sleep(0.5)
-                print("[visit] Failed to read page.")
-                if attempt == max_retries - 1:
-                    return "[visit] Failed to read page."
-                
-        return "[visit] Failed to read page."
+                except Exception:
+                    time.sleep(0.5)
+                    if attempt == 2:
+                        return "[visit] Failed to read page."
+            return "[visit] Failed to read page."
 
-    def html_readpage_jina(self, url: str) -> str:
-        max_attempts = 8
-        for attempt in range(max_attempts):
-            content = self.jina_readpage(url)
-            service = "jina"     
-            print(service)
-            if content and not content.startswith("[visit] Failed to read page.") and content != "[visit] Empty content." and not content.startswith("[document_parser]"):
-                return content
-        return "[visit] Failed to read page."
+        def call_server(msgs, max_retries=2):
+            api_key = os.environ.get("API_KEY")
+            url_llm = os.environ.get("API_BASE")
+            model_name = os.environ.get("SUMMARY_MODEL_NAME", "")
+            client = OpenAI(api_key=api_key, base_url=url_llm)
+            for attempt in range(max_retries):
+                try:
+                    chat_response = client.chat.completions.create(
+                        model=model_name, messages=msgs, temperature=0.7
+                    )
+                    content = chat_response.choices[0].message.content
+                    if content:
+                        try:
+                            json.loads(content)
+                        except:
+                            left = content.find('{')
+                            right = content.rfind('}')
+                            if left != -1 and right != -1 and left <= right:
+                                content = content[left:right+1]
+                        return content
+                except:
+                    if attempt == (max_retries - 1):
+                        return ""
+                    continue
 
-    def readpage_jina(self, url: str, goal: str) -> str:
-        """
-        Read webpage content via the Jina reader service with retry logic.
+        content = None
+        for _ in range(8):
+            content = jina_readpage(url)
+            if content and not content.startswith("[visit]") and not content.startswith("[document_parser]"):
+                break
+        else:
+            content = None
 
-        Args:
-            url: The URL to read
-            goal: The goal/purpose of reading the page
-
-        Returns:
-            str: The webpage content or error message
-        """
-   
-        summary_page_func = self.call_server
-        max_retries = int(os.getenv('VISIT_SERVER_MAX_RETRIES', 1))
-
-        content = self.html_readpage_jina(url)
-
-        if content and not content.startswith("[visit] Failed to read page.") and content != "[visit] Empty content." and not content.startswith("[document_parser]"):
+        if content:
             content = truncate_to_tokens(content, max_tokens=95000)
-            messages = [{"role":"user","content": EXTRACTOR_PROMPT.format(webpage_content=content, goal=goal)}]
-            parse_retry_times = 0
-            raw = summary_page_func(messages, max_retries=max_retries)
+            messages = [{"role": "user", "content": EXTRACTOR_PROMPT.format(webpage_content=content, goal=goal)}]
+            raw = call_server(messages, max_retries=VISIT_SERVER_MAX_RETRIES)
+
             summary_retries = 3
             while len(raw) < 10 and summary_retries >= 0:
                 truncate_length = int(0.7 * len(content)) if summary_retries > 0 else 25000
-                status_msg = (
-                    f"[visit] Summary url[{url}] " 
-                    f"attempt {3 - summary_retries + 1}/3, "
-                    f"content length: {len(content)}, "
-                    f"truncating to {truncate_length} chars"
-                ) if summary_retries > 0 else (
-                    f"[visit] Summary url[{url}] failed after 3 attempts, "
-                    f"final truncation to 25000 chars"
-                )
-                print(status_msg)
                 content = content[:truncate_length]
-                extraction_prompt = EXTRACTOR_PROMPT.format(
-                    webpage_content=content,
-                    goal=goal
-                )
+                extraction_prompt = EXTRACTOR_PROMPT.format(webpage_content=content, goal=goal)
                 messages = [{"role": "user", "content": extraction_prompt}]
-                raw = summary_page_func(messages, max_retries=max_retries)
+                raw = call_server(messages, max_retries=VISIT_SERVER_MAX_RETRIES)
                 summary_retries -= 1
 
             parse_retry_times = 0
@@ -244,29 +198,57 @@ class Visit(BaseTool):
                     raw = json.loads(raw)
                     break
                 except:
-                    raw = summary_page_func(messages, max_retries=max_retries)
+                    raw = call_server(messages, max_retries=VISIT_SERVER_MAX_RETRIES)
                     parse_retry_times += 1
-            
+
             if parse_retry_times >= 3:
-                useful_information = "The useful information in {url} for user goal {goal} as follows: \n\n".format(url=url, goal=goal)
-                useful_information += "Evidence in page: \n" + "The provided webpage content could not be accessed. Please check the URL or file format." + "\n\n"
-                useful_information += "Summary: \n" + "The webpage content could not be processed, and therefore, no information is available." + "\n\n"
+                useful_information = f"The useful information in {url} for user goal {goal} as follows: \n\n"
+                useful_information += "Evidence in page: \nThe provided webpage content could not be accessed.\n\n"
+                useful_information += "Summary: \nThe webpage content could not be processed.\n\n"
             else:
-                useful_information = "The useful information in {url} for user goal {goal} as follows: \n\n".format(url=url, goal=goal)
-                useful_information += "Evidence in page: \n" + str(raw["evidence"]) + "\n\n"
-                useful_information += "Summary: \n" + str(raw["summary"]) + "\n\n"
-
-            if len(useful_information) < 10 and summary_retries < 0:
-                print("[visit] Could not generate valid summary after maximum retries")
-                useful_information = "[visit] Failed to read page"
-            
+                useful_information = f"The useful information in {url} for user goal {goal} as follows: \n\n"
+                useful_information += f"Evidence in page: \n{str(raw['evidence'])}\n\n"
+                useful_information += f"Summary: \n{str(raw['summary'])}\n\n"
             return useful_information
-
-        # If no valid content was obtained after all retries
         else:
-            useful_information = "The useful information in {url} for user goal {goal} as follows: \n\n".format(url=url, goal=goal)
-            useful_information += "Evidence in page: \n" + "The provided webpage content could not be accessed. Please check the URL or file format." + "\n\n"
-            useful_information += "Summary: \n" + "The webpage content could not be processed, and therefore, no information is available." + "\n\n"
+            useful_information = f"The useful information in {url} for user goal {goal} as follows: \n\n"
+            useful_information += "Evidence in page: \nThe provided webpage content could not be accessed.\n\n"
+            useful_information += "Summary: \nThe webpage content could not be processed.\n\n"
             return useful_information
 
-    
+    # ── Unified interface ─────────────────────────────────────────────────
+
+    def call(self, params: Union[str, dict], **kwargs) -> str:
+        try:
+            url = params["url"]
+            goal = params["goal"]
+        except:
+            return "[Visit] Invalid request format: Input must be a JSON object containing 'url' and 'goal' fields"
+
+        start_time = time.time()
+
+        if isinstance(url, str):
+            if USE_LOCAL_SEARCH:
+                response = self._visit_local(url, goal)
+            else:
+                response = self._visit_online(url, goal)
+        else:
+            assert isinstance(url, List)
+            responses = []
+            for u in url:
+                if time.time() - start_time > 900:
+                    responses.append(
+                        f"The useful information in {u} for user goal {goal} as follows: \n\n"
+                        f"Evidence in page: \nTimeout.\n\nSummary: \nTimeout.\n\n"
+                    )
+                else:
+                    try:
+                        if USE_LOCAL_SEARCH:
+                            responses.append(self._visit_local(u, goal))
+                        else:
+                            responses.append(self._visit_online(u, goal))
+                    except Exception as e:
+                        responses.append(f"Error fetching {u}: {str(e)}")
+            response = "\n=======\n".join(responses)
+
+        return response.strip()

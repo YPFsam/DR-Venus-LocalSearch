@@ -36,7 +36,10 @@ export PET_NODE_RANK=0
 export MODEL_PATH="/path/to/your/base_model"
 export OUTPUT="./output"
 export EVAL_LOG_PATH="./eval_log"
-export _GPU_NUM=`nvidia-smi -L | wc -l`
+export _GPU_NUM=${NUM_GPUS:-$(nvidia-smi -L 2>/dev/null | wc -l)}
+if [ "$_GPU_NUM" -le 0 ] 2>/dev/null || [ -z "$_GPU_NUM" ]; then
+    _GPU_NUM=4
+fi
 mkdir -p "$OUTPUT"
 mkdir -p "$EVAL_LOG_PATH"
 
@@ -57,12 +60,17 @@ FORMAT_PENALTY_SCALE=1.0              # penalty magnitude (applied as -1.0 * sca
 # faster, but vLLM vs FSDP logprobs may diverge numerically). Keep false for
 # paper-reproducibility; set IGPO_CROSSCHECK=N to sample-validate when enabled.
 USE_ROLLOUT_IG=false
-TRAIN_REWARD_TYPE="llm"               # "llm" (LLM judge) or "f1"
+TRAIN_REWARD_TYPE=${TRAIN_REWARD_TYPE:-"f1"}          # "llm" (LLM judge) or "f1"
 MASK_TOOL_RESPONSE=true               # mask tool_response tokens in policy loss
+
+# ── Local Search Configuration ──
+USE_LOCAL_SEARCH=${USE_LOCAL_SEARCH:-"true"}          # true=local BM25 HTTP server, false=Serper+Jina+LLM
+LOCAL_SEARCH_SERVER_URL=${LOCAL_SEARCH_SERVER_URL:-"http://localhost:8890"}
+LOCAL_SEARCH_TOPK=${LOCAL_SEARCH_TOPK:-10}
 
 # ── Rollout Mode ──
 USE_ASYNC_ROLLOUT=true                # true=async agent loop, false=sync generation
-ASYNC_NUM_WORKERS=8                   # number of AgentLoopWorker Ray actors
+ASYNC_NUM_WORKERS=${ASYNC_NUM_WORKERS:-4}             # number of AgentLoopWorker Ray actors
 ASYNC_MAX_CONCURRENT_SAMPLES=""       # "" = disabled; e.g. "16" to limit concurrency
 ASYNC_COMPLETION_CUTOFF="0.9"         # "" = disabled; e.g. "0.9" = cut off stragglers when 90% done
 
@@ -88,11 +96,11 @@ ROBUST_REPETITION=true                # retry on repeating tail (>5× of last 50
 # PPO_MAX_TOKEN_LEN is auto-computed so that
 #   PPO_MAX_TOKEN_LEN × ULYSSES_SP_SIZE ≥ max training sequence length
 
-MAX_MODEL_LEN=261000                  # model context window
-MAX_PROMPT_LEN=246000                 # dataset filter + sync prompt padding
-MAX_RESPONSE_LEN=8192                # per-turn generation limit
-ULYSSES_SP_SIZE=8                     # sequence parallel size
-ASYNC_PROMPT_PAD=1024                 # async prompt padding (≥ max initial prompt)
+MAX_MODEL_LEN=${MAX_MODEL_LEN:-131000}              # model context window (halved from 261K for 4-GPU)
+MAX_PROMPT_LEN=${MAX_PROMPT_LEN:-120000}             # dataset filter + sync prompt padding
+MAX_RESPONSE_LEN=${MAX_RESPONSE_LEN:-8192}           # per-turn generation limit
+ULYSSES_SP_SIZE=${ULYSSES_SP_SIZE:-4}                 # sequence parallel size (4 for 4-GPU)
+ASYNC_PROMPT_PAD=${ASYNC_PROMPT_PAD:-1024}           # async prompt padding
 
 if [ "$USE_ASYNC_ROLLOUT" = "true" ]; then
     # Async training seq ≤ ASYNC_PROMPT_PAD + MAX_MODEL_LEN
@@ -120,6 +128,9 @@ echo "PPO_MAX_TOKEN_LEN=${PPO_MAX_TOKEN_LEN} (effective: $((PPO_MAX_TOKEN_LEN * 
 #                                vLLM rollout-logprob and FSDP actor-logprob paths
 # Enable them only when diagnosing IG/numerical discrepancies.
 HYDRA_FULL_ERROR=1 PYTHONUNBUFFERED=1 \
+USE_LOCAL_SEARCH=$([ "$USE_LOCAL_SEARCH" = "true" ] && echo true || echo false) \
+LOCAL_SEARCH_SERVER_URL=${LOCAL_SEARCH_SERVER_URL} \
+LOCAL_SEARCH_TOPK=${LOCAL_SEARCH_TOPK} \
 IGPO_ROLLOUT_IG=$([ "$USE_ROLLOUT_IG" = "true" ] && echo 1 || echo 0) \
 IGPO_IG_COMPUTE_FREQ=${IG_COMPUTE_FREQ} \
 IGPO_IG_TOOL_FILTER="${IG_TOOL_FILTER}" \
@@ -139,19 +150,19 @@ python3 -m verl.trainer.main_ppo \
     algorithm.ig_weight=${IG_WEIGHT} \
     algorithm.use_format_penalty=${USE_FORMAT_PENALTY} \
     algorithm.format_penalty_scale=${FORMAT_PENALTY_SCALE} \
-    data.train_files=data/train.parquet \
+    data.train_files=${TRAIN_FILE:-data/train_40k.parquet} \
     data.val_files=data/test.parquet \
-    data.train_batch_size=16 \
+    data.train_batch_size=${TRAIN_BATCH_SIZE:-8} \
     data.max_prompt_length=${MAX_PROMPT_LEN} \
     data.max_response_length=${MAX_RESPONSE_LEN} \
     +data.max_model_len=${MAX_MODEL_LEN} \
     actor_rollout_ref.model.path=${MODEL_PATH} \
     actor_rollout_ref.model.use_remove_padding=true \
     actor_rollout_ref.actor.optim.lr=1e-6 \
-    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE:-64} \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
-    actor_rollout_ref.rollout.tensor_model_parallel_size=4 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=${TP_SIZE:-2} \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.9 \
     actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
     actor_rollout_ref.rollout.disable_log_stats=false \
@@ -188,7 +199,7 @@ python3 -m verl.trainer.main_ppo \
     trainer.validation_data_dir=${EVAL_LOG_PATH} \
     trainer.default_local_dir=${OUTPUT} \
     agent_grpo.n=8 \
-    max_turns=200 \
+    max_turns=${MAX_TURNS:-50} \
     +tool_timeout=150 \
     +trace_save_interval=10 \
     +trace_max_samples=0 \

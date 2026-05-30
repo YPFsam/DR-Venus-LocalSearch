@@ -3,9 +3,11 @@ License: This code is adapted from Tongyi DeepResearch:
 https://github.com/Alibaba-NLP/DeepResearch/blob/main/inference/prompt.py
 '''
 
+import os
+
 EXTRACTOR_PROMPT = """Please process the following webpage content and user goal to extract relevant information:
 
-## **Webpage Content** 
+## **Webpage Content**
 {webpage_content}
 
 ## **User Goal**
@@ -25,7 +27,28 @@ EXTRACTOR_PROMPT = """Please process the following webpage content and user goal
 """
 
 
-SYSTEM_PROMPT = """You are a deep research assistant. Your core function is to conduct thorough, multi-source investigations into any topic. You must handle both broad, open-domain inquiries and queries within specialized academic fields. For each user request, you must actively seek out and **cross-check information** from credible and diverse sources, then integrate the findings into a response that is comprehensive, accurate, well-structured, and objective. When you have gathered sufficient information and are ready to provide the definitive response, you must enclose the entire final answer in `<answer></answer>` tags.
+# Select tool descriptions based on search mode
+_USE_LOCAL_SEARCH = os.environ.get("USE_LOCAL_SEARCH", "true").lower() == "true"
+
+if _USE_LOCAL_SEARCH:
+    _SEARCH_DESC = (
+        "Search a local knowledge base (Wikipedia) using BM25 and return the top passages. "
+        "Accepts multiple queries."
+    )
+    _VISIT_DESC = (
+        "Retrieve the full content of a passage from the local knowledge base by its document ID "
+        "(local:// URL from search results)."
+    )
+else:
+    _SEARCH_DESC = (
+        "Perform Google web searches then returns a string of the top search results. "
+        "Accepts multiple queries."
+    )
+    _VISIT_DESC = "Visit webpage(s) and return the summary of the content."
+
+# Build SYSTEM_PROMPT with the appropriate tool descriptions.
+# Using string replacement to avoid f-string conflicts with JSON braces.
+_SYSTEM_PROMPT_TEMPLATE = """You are a deep research assistant. Your core function is to conduct thorough, multi-source investigations into any topic. You must handle both broad, open-domain inquiries and queries within specialized academic fields. For each user request, you must actively seek out and **cross-check information** from credible and diverse sources, then integrate the findings into a response that is comprehensive, accurate, well-structured, and objective. When you have gathered sufficient information and are ready to provide the definitive response, you must enclose the entire final answer in `<answer></answer>` tags.
 
 # Tools
 
@@ -33,17 +56,19 @@ You may call one or more functions to assist with the user query.
 
 You are provided with function signatures within <tools></tools> XML tags:
 <tools>
-{"type": "function", "function": {"name": "search", "description": "Perform Google web searches then returns a string of the top search results. Accepts multiple queries.", "parameters": {"type": "object", "properties": {"query": {"type": "array", "items": {"type": "string", "description": "The search query."}, "minItems": 1, "description": "The list of search queries."}}, "required": ["query"]}}}
-{"type": "function", "function": {"name": "visit", "description": "Visit webpage(s) and return the summary of the content.", "parameters": {"type": "object", "properties": {"url": {"type": "array", "items": {"type": "string"}, "description": "The URL(s) of the webpage(s) to visit. Can be a single URL or an array of URLs."}, "goal": {"type": "string", "description": "The specific information goal for visiting webpage(s)."}}, "required": ["url", "goal"]}}}
+{"type": "function", "function": {"name": "search", "description": "__SEARCH_DESC__", "parameters": {"type": "object", "properties": {"query": {"type": "array", "items": {"type": "string", "description": "The search query."}, "minItems": 1, "description": "The list of search queries."}}, "required": ["query"]}}}
+{"type": "function", "function": {"name": "visit", "description": "__VISIT_DESC__", "parameters": {"type": "object", "properties": {"url": {"type": "array", "items": {"type": "string"}, "description": "The URL(s) of the webpage(s) to visit. Can be a single URL or an array of URLs."}, "goal": {"type": "string", "description": "The specific information goal for visiting webpage(s)."}}, "required": ["url", "goal"]}}}
 </tools>
 
-For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
-<tool_call>
+For each function call, return a json object with function name and arguments within <tool_callDemand> XML tags:
+<tool_callDemand>
 {"name": <function-name>, "arguments": <args-json-object>}
-</tool_call>
+</tool_callDemand>
 
 Current date: 2026-03-01
 """
+
+SYSTEM_PROMPT = _SYSTEM_PROMPT_TEMPLATE.replace("__SEARCH_DESC__", _SEARCH_DESC).replace("__VISIT_DESC__", _VISIT_DESC)
 
 
 SUMMARY_PROMPT = """You are a DeepThink model. For a given question, summarize all previous rounds of searches and reasoning:
@@ -51,12 +76,12 @@ SUMMARY_PROMPT = """You are a DeepThink model. For a given question, summarize a
 2.Minimize token usage.
 3.Retain the original style while condensing, including questions and reasoning phrasing.
 4.Optionally, provide suggestions for next steps in research.
-5.dont use <answer> or <tool_call>
+5.dont use <answer> or <tool_callDemand>
 Your output format should be one of the following two formats:
 
-<think>
+<thinkDemand>
 YOUR THINKING PROCESS
-</think>
+</thinkDemand>
 <summary>
 your summary
 </summary>

@@ -72,6 +72,8 @@ python-dotenv
 qwen-agent
 requests
 tiktoken
+rank_bm25
+flask
 
 # -- Vision / multimodal (only needed when training VLM checkpoints) --
 qwen-vl-utils

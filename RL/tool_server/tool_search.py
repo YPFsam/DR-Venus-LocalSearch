@@ -1,23 +1,20 @@
 '''
-License: This code is adapted from Tongyi DeepResearch:
-https://github.com/Alibaba-NLP/DeepResearch/blob/main/inference/tool_search.py
+Search tool with local BM25 server support.
+
+When USE_LOCAL_SEARCH=true (default), sends HTTP requests to a local BM25
+search server instead of the Serper API. This keeps each Ray worker stateless.
+
+When USE_LOCAL_SEARCH=false, falls back to the original Serper API.
 '''
 
-import json
-from typing import List, Union
+import os
+from typing import List, Optional, Union
+
 from qwen_agent.tools.base import BaseTool, register_tool
 
-from typing import Dict, List, Optional, Union
-
-import http.client
-import json
-from dotenv import load_dotenv
-
-import os
-load_dotenv()
-
-SERPER_KEY=os.environ.get('SERPER_KEY_ID')
-#print("SERPER_KEY",SERPER_KEY)
+USE_LOCAL_SEARCH = os.environ.get("USE_LOCAL_SEARCH", "true").lower() == "true"
+LOCAL_SEARCH_SERVER_URL = os.environ.get("LOCAL_SEARCH_SERVER_URL", "http://localhost:8890")
+LOCAL_SEARCH_TOPK = int(os.environ.get("LOCAL_SEARCH_TOPK", "10"))
 
 
 @register_tool("search", allow_overwrite=True)
@@ -29,10 +26,8 @@ class Search(BaseTool):
         "properties": {
             "query": {
                 "type": "array",
-                "items": {
-                    "type": "string"
-                },
-                "description": "Array of query strings. Include multiple complementary search queries in a single call."
+                "items": {"type": "string"},
+                "description": "Array of query strings. Include multiple complementary search queries in a single call.",
             },
         },
         "required": ["query"],
@@ -40,31 +35,62 @@ class Search(BaseTool):
 
     def __init__(self, cfg: Optional[dict] = None):
         super().__init__(cfg)
-    def google_search_with_serp(self, query: str):
+
+    # ── Local BM25 server (stateless HTTP) ────────────────────────────────
+
+    def _search_local(self, query: str) -> str:
+        """Query local BM25 server and format result as Serper-compatible text."""
+        import requests
+
+        try:
+            resp = requests.post(
+                f"{LOCAL_SEARCH_SERVER_URL}/search",
+                json={"queries": [query], "topk": LOCAL_SEARCH_TOPK},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            return f"No results found for '{query}'. Local search server error: {e}"
+
+        results_list = data.get("results", [])
+        if not results_list:
+            return f"No results found for '{query}'."
+
+        passages = results_list[0].get("passages", [])
+        if not passages:
+            return f"No results found for '{query}'."
+
+        snippets = []
+        for i, p in enumerate(passages, 1):
+            url = f"local://{p['id']}"
+            snippet = p["text"][:200]
+            line = f"{i}. [{p['title']}]({url})\n{snippet}"
+            snippets.append(line)
+
+        header = f"A Google search for '{query}' found {len(passages)} results:\n\n## Web Results\n"
+        return header + "\n\n".join(snippets)
+
+    # ── Original Serper API ───────────────────────────────────────────────
+
+    def _search_serper(self, query: str) -> str:
+        import http.client
+        import json
+        from dotenv import load_dotenv
+        load_dotenv()
+        SERPER_KEY = os.environ.get('SERPER_KEY_ID')
+
+        conn = http.client.HTTPSConnection("google.serper.dev")
+
         def contains_chinese_basic(text: str) -> bool:
             return any('\u4E00' <= char <= '\u9FFF' for char in text)
-        conn = http.client.HTTPSConnection("google.serper.dev")
+
         if contains_chinese_basic(query):
-            payload = json.dumps({
-                "q": query,
-                "location": "China",
-                "gl": "cn",
-                "hl": "zh-cn"
-            })
-            
+            payload = json.dumps({"q": query, "location": "China", "gl": "cn", "hl": "zh-cn"})
         else:
-            payload = json.dumps({
-                "q": query,
-                "location": "United States",
-                "gl": "us",
-                "hl": "en"
-            })
-        headers = {
-                'X-API-KEY': SERPER_KEY,
-                'Content-Type': 'application/json'
-            }
-        
-        
+            payload = json.dumps({"q": query, "location": "United States", "gl": "us", "hl": "en"})
+        headers = {'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json'}
+
         for i in range(5):
             try:
                 conn.request("POST", "/search", payload, headers)
@@ -75,63 +101,50 @@ class Search(BaseTool):
                 if i == 4:
                     return f"Google search Timeout, return None, Please try again later."
                 continue
-    
+
         data = res.read()
         results = json.loads(data.decode("utf-8"))
 
         try:
             if "organic" not in results:
-                raise Exception(f"No results found for query: '{query}'. Use a less specific query.")
+                raise Exception(f"No results found for query: '{query}'.")
 
-            web_snippets = list()
+            web_snippets = []
             idx = 0
-            if "organic" in results:
-                for page in results["organic"]:
-                    idx += 1
-                    date_published = ""
-                    if "date" in page:
-                        date_published = "\nDate published: " + page["date"]
+            for page in results["organic"]:
+                idx += 1
+                date_published = "\nDate published: " + page["date"] if "date" in page else ""
+                source = "\nSource: " + page["source"] if "source" in page else ""
+                snippet = "\n" + page["snippet"] if "snippet" in page else ""
+                redacted_version = f"{idx}. [{page['title']}]({page['link']}){date_published}{source}\n{snippet}"
+                redacted_version = redacted_version.replace("Your browser can't play this video.", "")
+                web_snippets.append(redacted_version)
 
-                    source = ""
-                    if "source" in page:
-                        source = "\nSource: " + page["source"]
-
-                    snippet = ""
-                    if "snippet" in page:
-                        snippet = "\n" + page["snippet"]
-
-                    redacted_version = f"{idx}. [{page['title']}]({page['link']}){date_published}{source}\n{snippet}"
-                    redacted_version = redacted_version.replace("Your browser can't play this video.", "")
-                    web_snippets.append(redacted_version)
-
-            content = f"A Google search for '{query}' found {len(web_snippets)} results:\n\n## Web Results\n" + "\n\n".join(web_snippets)
-            return content
+            return f"A Google search for '{query}' found {len(web_snippets)} results:\n\n## Web Results\n" + "\n\n".join(web_snippets)
         except:
             return f"No results found for '{query}'. Try with a more general query."
 
+    # ── Unified interface ─────────────────────────────────────────────────
 
-    
     def search_with_serp(self, query: str):
-        result = self.google_search_with_serp(query)
-        return result
+        if USE_LOCAL_SEARCH:
+            return self._search_local(query)
+        else:
+            return self._search_serper(query)
 
     def call(self, params: Union[str, dict], **kwargs) -> str:
         try:
             query = params["query"]
-            #print(query)
         except:
             return "[Search] Invalid request format: Input must be a JSON object containing 'query' field"
-        
+
         if isinstance(query, str):
-            # Single-query path.
             response = self.search_with_serp(query)
         else:
-            # Batched multi-query path.
             assert isinstance(query, List)
             responses = []
             for q in query:
                 responses.append(self.search_with_serp(q))
             response = "\n=======\n".join(responses)
-            print("response is :",response)
-            
+
         return response
