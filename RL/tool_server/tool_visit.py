@@ -1,8 +1,8 @@
 '''
-Visit tool with local BM25 server support.
+Visit tool with local search server support.
 
 When USE_LOCAL_SEARCH=true (default), retrieves documents from the local
-BM25 search server via HTTP instead of using Jina + LLM summarization.
+search server via HTTP instead of using Jina + LLM summarization.
 
 When USE_LOCAL_SEARCH=false, falls back to the original Jina + LLM pipeline.
 '''
@@ -39,10 +39,10 @@ class Visit(BaseTool):
         "required": ["url", "goal"]
     }
 
-    # ── Local BM25 server (stateless HTTP) ────────────────────────────────
+    # ── Local search server (stateless HTTP) ──────────────────────────────
 
     def _visit_local(self, url: str, goal: str) -> str:
-        """Retrieve a document from the local BM25 server.
+        """Retrieve a document from the local search server.
 
         Only local:// URLs (returned by local search) are supported.
         Regular http(s):// URLs are rejected with a clear error message.

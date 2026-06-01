@@ -10,6 +10,8 @@ __pycache__/
 # RL generated data and runtime artifacts
 RL/data/downloads/
 RL/data/local_search_index/
+RL/data/.local_search_index.building/
+RL/data/.local_search_index.previous/
 RL/data/redsearcher_rl_1k.parquet
 RL/data/wiki_passages.jsonl
 RL/data/models/

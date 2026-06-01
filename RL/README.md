@@ -3,7 +3,8 @@
 This directory contains a resource-constrained DR-Venus RL setup for one
 machine with four 80 GB A100 or A800 GPUs. It starts from the official
 [`inclusionAI/DR-Venus-4B-SFT`](https://huggingface.co/inclusionAI/DR-Venus-4B-SFT)
-checkpoint and uses a local Wikipedia BM25 service instead of Serper and Jina.
+checkpoint and uses a local Wikipedia retrieval service instead of Serper and
+Jina.
 
 The official RL checkpoint card states that RL uses
 [`Zchu/REDSearcher_RL_1K`](https://huggingface.co/datasets/Zchu/REDSearcher_RL_1K):
@@ -17,7 +18,7 @@ default training file in this local setup.
 |---|---:|---:|
 | Starting checkpoint | SFT checkpoint | `inclusionAI/DR-Venus-4B-SFT` |
 | RL training data | repository `data/train.parquet` | converted REDSearcher RL 1K |
-| Retrieval | Serper + Jina | local Wikipedia BM25 HTTP service |
+| Retrieval | Serper + Jina | local Wikipedia Tantivy HTTP service |
 | Outcome reward | LLM judge | deterministic F1 |
 | GPUs | 16 x A100 in the original run | 4 x 80 GB A100/A800 |
 | Context window | 261K | 131K |
@@ -40,15 +41,15 @@ official online-search run. Its metrics should be reported separately.
 - Network access while downloading the model, the 1K RL data, and Wikipedia.
   After preparation, local-search training does not need external APIs.
 
-The default BM25 corpus is 100,000 Wikipedia passages so a new machine can run
-the full workflow without loading a multi-million-passage Python index. Increase
-the corpus only after measuring RAM usage and retrieval latency. `rank_bm25`
-scores the corpus in Python for every query, so a much larger production corpus
-should use a scalable retrieval backend.
+The default corpus is 500,000 Wikipedia passages. Tantivy is the default
+backend: it uses an inverted index, so a query does not score every passage in
+Python. Use 100,000 passages only for a faster smoke preparation, and increase
+beyond 500,000 only after measuring RAM usage, retrieval latency, and answer
+coverage.
 
-The 100,000-passage default is a deployment baseline, not an internet-scale
-corpus and not a guarantee that REDSearcher questions are covered. Measure
-retrieval quality before paying for a formal RL run.
+The local corpus is not an internet-scale corpus and does not guarantee that
+REDSearcher questions are covered. Measure retrieval quality before paying for
+a formal RL run.
 
 ## 3. Quick Vendor Bootstrap
 
@@ -63,7 +64,8 @@ bash scripts/bootstrap_vendor.sh
 
 This command downloads the official SFT checkpoint when missing, creates `.env`
 when missing, downloads and converts the official REDSearcher RL 1K data, and
-builds the BM25 index when missing. It does not rebuild an existing index.
+builds the Tantivy index when missing. It does not rebuild an existing index.
+The default bootstrap index contains 500,000 passages.
 
 The remaining sections document each step separately for troubleshooting and
 custom deployments.
@@ -137,14 +139,14 @@ MAX_CRITIC_CKPT_TO_KEEP=2
 MAX_LOCAL_CKPT_TO_KEEP=2
 ```
 
-Local BM25 retrieval plus F1 reward does not require Serper, Jina, a page
+Local retrieval plus F1 reward does not require Serper, Jina, a page
 summarizer, or an LLM judge API.
 
 ## 7. Prepare RL Data and Local Retrieval
 
 The convenience script downloads the official REDSearcher 1K source parquet,
 converts it to the veRL schema, streams Wikipedia from Hugging Face, and builds
-a local BM25 index:
+a local Tantivy index:
 
 ```bash
 bash scripts/prepare_local_rl.sh
@@ -155,28 +157,46 @@ The generated files are:
 ```text
 data/redsearcher_rl_1k.parquet
 data/local_search_index/passages.jsonl
-data/local_search_index/bm25_index.pkl
+data/local_search_index/tantivy_index/
 data/local_search_index/metadata.json
 ```
 
-The default index size is 100,000 passages. To request another size:
+The default index size is 500,000 passages. To build a smaller smoke index:
 
 ```bash
-INDEX_PASSAGES=500000 bash scripts/prepare_local_rl.sh
+INDEX_PASSAGES=100000 bash scripts/prepare_local_rl.sh
 ```
 
-Existing index files are reused. To rebuild them intentionally:
+Existing index files are reused only when their backend and passage count match
+the requested configuration. To rebuild them intentionally:
 
 ```bash
 FORCE_REBUILD_INDEX=true INDEX_PASSAGES=500000 bash scripts/prepare_local_rl.sh
 ```
 
-Use 100,000 passages for the first smoke run. For a paid formal run, compare
-100,000 and 500,000 passages with `evaluate_local_retrieval.py`. A 1,000,000
-passage index can be tried only after measuring host RAM and latency: the
-bundled `rank_bm25` backend scans the full corpus for each query, so 10x more
-passages also makes each search substantially more expensive. Do not select
-1,000,000 passages solely because the index fits on disk.
+Use 100,000 passages for a fast smoke preparation and 500,000 passages for the
+first paid formal run. A 1,000,000-passage index is reasonable only after
+measuring retrieval quality and latency; fitting on disk does not prove that
+the corpus covers the training questions. Index builds use a staging directory
+and replace the live index only after every artifact is complete.
+
+Reference measurements on a 23 GiB WSL host showed why the Tantivy default
+matters. With 100,000 passages, the original `rank_bm25` fallback used about
+1.45 GiB server RSS and 2.42 seconds per query. Tantivy used about 100 MiB RSS
+and 19 ms per query. With 500,000 passages, `rank_bm25` used about 6.4 GiB RSS
+and 11.25 seconds per query, while Tantivy used about 240 MiB RSS and 72 ms per
+query in a serial 100-query test. In a 1,000-query test with four concurrent
+single-query requests, 500,000-passage Tantivy averaged 53 ms per query and
+74 queries/s. A 1,000,000-passage Tantivy index averaged 92 ms and 43 queries/s,
+but its conservative lexical `answer hit@10` did not improve. Hardware differs,
+so benchmark the target machine before a formal run.
+
+SQLite FTS5 and `rank_bm25` remain available as diagnostic fallback backends:
+
+```bash
+LOCAL_SEARCH_BACKEND=sqlite_fts5 FORCE_REBUILD_INDEX=true \
+  bash scripts/prepare_local_rl.sh
+```
 
 If the training machine cannot access Hugging Face, copy a local JSONL corpus
 to the machine and build the index from it. Each line must contain `title` and
@@ -194,7 +214,7 @@ generated `data/redsearcher_rl_1k.parquet` copied to the training machine.
 
 ## 8. Start Retrieval and Validate the Machine
 
-Start the BM25 service in its own terminal:
+Start the retrieval service in its own terminal:
 
 ```bash
 cd DR-Venus/RL
@@ -228,6 +248,13 @@ The preflight verifies:
 `evaluate_local_retrieval.py` separately reports query latency and a
 conservative lexical `answer hit@k` diagnostic. Use `--sample_size 1000` before
 a formal run. It is a retrieval sanity check, not an RL evaluation metric.
+
+To run the retrieval service and the diagnostic in one temporary session:
+
+```bash
+INDEX_LABEL=500k SAMPLE_SIZE=1000 CONCURRENCY=4 \
+  bash scripts/run_local_retrieval_eval.sh
+```
 
 ## 9. Smoke Run and Formal Training
 
@@ -343,9 +370,10 @@ divisibility checks enforced by preflight.
 
 **Local retrieval is too slow**
 
-Start with fewer passages and measure query latency. The bundled server is a
-simple single-process `rank_bm25` baseline; it is intentionally easy to deploy,
-but it is not a high-throughput search engine.
+Check `/health` and confirm that `backend` is `tantivy`, then run
+`scripts/run_local_retrieval_eval.sh` with `CONCURRENCY=4`. The `rank_bm25`
+fallback scans every passage in Python and is not suitable for a paid
+long-horizon run.
 
 **Collect a troubleshooting bundle**
 

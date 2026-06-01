@@ -46,7 +46,7 @@ fi
 run_optional python3 - <<'PY'
 from importlib.metadata import PackageNotFoundError, version
 
-for package in ["torch", "vllm", "ray", "transformers", "datasets", "rank-bm25", "flask", "wandb"]:
+for package in ["torch", "vllm", "ray", "transformers", "datasets", "tantivy", "rank-bm25", "flask", "wandb"]:
     try:
         print(f"{package}=={version(package)}")
     except PackageNotFoundError:

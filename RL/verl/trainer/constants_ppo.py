@@ -61,8 +61,8 @@ _PASSTHROUGH_FROM_OS = [
     # Web visit (Jina)
     "JINA_API_KEYS", "PROXY",
     "VISIT_SERVER_TIMEOUT", "VISIT_SERVER_MAX_RETRIES", "WEBCONTENT_MAXLENGTH",
-    # Local BM25 search server
-    "USE_LOCAL_SEARCH", "LOCAL_SEARCH_SERVER_URL", "LOCAL_SEARCH_TOPK", "NO_PROXY", "no_proxy",
+    # Local search server
+    "USE_LOCAL_SEARCH", "LOCAL_SEARCH_SERVER_URL", "LOCAL_SEARCH_TOPK", "LOCAL_SEARCH_BACKEND", "NO_PROXY", "no_proxy",
     # Distributed networking (Gloo/NCCL NIC selection)
     "GLOO_SOCKET_IFNAME",
 ]

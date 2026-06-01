@@ -33,7 +33,7 @@ _USE_LOCAL_SEARCH = os.environ.get("USE_LOCAL_SEARCH", "true").lower() == "true"
 
 if _USE_LOCAL_SEARCH:
     _SEARCH_DESC = (
-        "Search a local knowledge base (Wikipedia) using BM25 and return the top passages. "
+        "Search a local Wikipedia knowledge base and return the top passages. "
         "Accepts multiple queries."
     )
     _VISIT_DESC = (

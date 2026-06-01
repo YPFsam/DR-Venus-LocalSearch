@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Build a local BM25 index from Wikipedia passages for offline retrieval.
+"""Build a local search index from Wikipedia passages for offline retrieval.
 
 This script downloads Wikipedia passages (from HuggingFace datasets or a local file),
-splits them into manageable chunks, and builds a BM25 index using the `rank_bm25` library.
+splits them into manageable chunks, and builds a Tantivy inverted index by
+default. SQLite FTS5 and the original `rank_bm25` full-scan backend remain
+available for comparison.
 
 Usage:
     # Option 1: Download Wikipedia from HuggingFace (recommended)
@@ -14,7 +16,9 @@ Usage:
 Output:
     data/local_search_index/
     ├── passages.jsonl       # Passage corpus (id, title, text)
-    ├── bm25_index.pkl       # Pre-built BM25 index (rank_bm25 format)
+    ├── tantivy_index/       # Tantivy inverted index (default)
+    ├── sqlite_fts.db        # Optional SQLite FTS5 inverted index
+    ├── bm25_index.pkl       # Optional rank_bm25 full-scan index
     └── metadata.json        # Index metadata (num_passages, avg_length, etc.)
 """
 
@@ -22,8 +26,10 @@ import argparse
 import json
 import os
 import pickle
+import shutil
 import sys
 import time
+from pathlib import Path
 from typing import Dict, List
 
 
@@ -44,7 +50,6 @@ def load_passages_from_huggingface(max_passages: int = 2_000_000) -> List[Dict]:
         "20231101.en",
         split="train",
         streaming=True,
-        trust_remote_code=True,
     )
 
     passages = []
@@ -147,17 +152,68 @@ def build_bm25_index(passages: List[Dict]):
     return bm25
 
 
+def remove_stale_backend_artifacts(output_dir: Path, backend: str) -> None:
+    """Remove indexes that no longer match the freshly written passage corpus."""
+    selected = {
+        "tantivy": {"tantivy"},
+        "sqlite_fts5": {"sqlite_fts5"},
+        "rank_bm25": {"rank_bm25"},
+        "both": {"sqlite_fts5", "rank_bm25"},
+    }[backend]
+    artifacts = {
+        "tantivy": output_dir / "tantivy_index",
+        "sqlite_fts5": output_dir / "sqlite_fts.db",
+        "rank_bm25": output_dir / "bm25_index.pkl",
+    }
+    for artifact_backend, path in artifacts.items():
+        if artifact_backend in selected or not path.exists():
+            continue
+        print(f"Removing stale {artifact_backend} index: {path}")
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
+
+def reset_staging_directory(staging_dir: Path, output_dir: Path) -> None:
+    """Create an empty sibling staging directory without touching the live index."""
+    if staging_dir.resolve().parent != output_dir.resolve().parent:
+        raise RuntimeError(f"Refusing to remove unexpected staging directory: {staging_dir}")
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    staging_dir.mkdir(parents=True)
+
+
+def promote_staging_directory(staging_dir: Path, output_dir: Path) -> None:
+    """Replace the live index only after every staged artifact is complete."""
+    backup_dir = output_dir.with_name(f".{output_dir.name}.previous")
+    if backup_dir.resolve().parent != output_dir.resolve().parent:
+        raise RuntimeError(f"Refusing to replace unexpected index directory: {output_dir}")
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+    if output_dir.exists():
+        output_dir.replace(backup_dir)
+    try:
+        staging_dir.replace(output_dir)
+    except Exception:
+        if backup_dir.exists() and not output_dir.exists():
+            backup_dir.replace(output_dir)
+        raise
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Build BM25 index for local retrieval")
+    parser = argparse.ArgumentParser(description="Build index for local retrieval")
     parser.add_argument("--output_dir", default="data/local_search_index",
                         help="Output directory for index files")
     parser.add_argument("--input_file", default=None,
                         help="Local JSONL file with passages (if not using HuggingFace)")
     parser.add_argument("--topk_passages", type=int, default=100_000,
                         help="Max number of passages to index (default: 100K)")
+    parser.add_argument("--backend", choices=["tantivy", "sqlite_fts5", "rank_bm25", "both"], default="tantivy",
+                        help="Index backend to build (default: tantivy)")
     args = parser.parse_args()
-
-    os.makedirs(args.output_dir, exist_ok=True)
 
     # Load passages
     if args.input_file:
@@ -169,32 +225,56 @@ def main():
         print("ERROR: No passages loaded.")
         sys.exit(1)
 
-    passages_path = os.path.join(args.output_dir, "passages.jsonl")
+    output_dir = Path(args.output_dir)
+    staging_dir = output_dir.with_name(f".{output_dir.name}.building")
+    reset_staging_directory(staging_dir, output_dir)
+
+    passages_path = staging_dir / "passages.jsonl"
     print(f"Saving passages to {passages_path}...")
     with open(passages_path, "w", encoding="utf-8") as f:
         for p in passages:
             f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    remove_stale_backend_artifacts(staging_dir, args.backend)
 
-    bm25 = build_bm25_index(passages)
-    bm25_path = os.path.join(args.output_dir, "bm25_index.pkl")
-    print(f"Saving BM25 index to {bm25_path}...")
-    with open(bm25_path, "wb") as f:
-        pickle.dump(bm25, f)
+    if args.backend in {"rank_bm25", "both"}:
+        bm25 = build_bm25_index(passages)
+        bm25_path = staging_dir / "bm25_index.pkl"
+        print(f"Saving BM25 index to {bm25_path}...")
+        with open(bm25_path, "wb") as f:
+            pickle.dump(bm25, f)
+
+    if args.backend in {"sqlite_fts5", "both"}:
+        from build_sqlite_fts_index import build_sqlite_fts_index
+
+        build_sqlite_fts_index(
+            passages_file=Path(passages_path),
+            output_file=staging_dir / "sqlite_fts.db",
+        )
+
+    if args.backend == "tantivy":
+        from build_tantivy_index import build_tantivy_index
+
+        build_tantivy_index(
+            passages_file=Path(passages_path),
+            output_dir=staging_dir / "tantivy_index",
+        )
 
     avg_len = sum(len(p["text"].split()) for p in passages) / len(passages)
     metadata = {
         "num_passages": len(passages),
         "avg_passage_length": avg_len,
         "source": args.input_file or "wikimedia/wikipedia-20231101.en",
+        "backend": args.backend,
     }
-    metadata_path = os.path.join(args.output_dir, "metadata.json")
+    metadata_path = staging_dir / "metadata.json"
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
+    promote_staging_directory(staging_dir, output_dir)
 
     print(f"\nIndex built successfully!")
     print(f"  Passages: {len(passages)}")
     print(f"  Avg passage length: {avg_len:.1f} words")
-    print(f"  Output: {args.output_dir}")
+    print(f"  Output: {output_dir}")
 
 
 if __name__ == "__main__":

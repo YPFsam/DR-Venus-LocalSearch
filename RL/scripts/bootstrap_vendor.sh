@@ -15,7 +15,7 @@ DEFAULT_MODEL_PATH="$RL_DIR/data/models/DR-Venus-4B-SFT"
 if [ -z "${MODEL_PATH:-}" ] || [ "$MODEL_PATH" = "/absolute/path/to/DR-Venus-4B-SFT" ]; then
     MODEL_PATH="$DEFAULT_MODEL_PATH"
 fi
-INDEX_PASSAGES=${INDEX_PASSAGES:-100000}
+INDEX_PASSAGES=${INDEX_PASSAGES:-500000}
 
 if ! command -v hf >/dev/null 2>&1; then
     echo "ERROR: Hugging Face CLI not found. Run: pip install --upgrade huggingface_hub" >&2

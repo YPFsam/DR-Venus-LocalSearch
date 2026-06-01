@@ -15,9 +15,11 @@ INDEX_DIR=${INDEX_DIR:-data/local_search_index}
 LOCAL_SEARCH_HOST=${LOCAL_SEARCH_HOST:-0.0.0.0}
 LOCAL_SEARCH_PORT=${LOCAL_SEARCH_PORT:-8890}
 LOCAL_SEARCH_LOG_FILE=${LOCAL_SEARCH_LOG_FILE:-logs/local_search.log}
+LOCAL_SEARCH_BACKEND=${LOCAL_SEARCH_BACKEND:-tantivy}
 
 exec python3 scripts/local_search_server.py \
     --index_dir "$INDEX_DIR" \
     --host "$LOCAL_SEARCH_HOST" \
     --port "$LOCAL_SEARCH_PORT" \
+    --backend "$LOCAL_SEARCH_BACKEND" \
     --log_file "$LOCAL_SEARCH_LOG_FILE"

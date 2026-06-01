@@ -20,6 +20,7 @@ REQUIRED_MODULES = [
     "rank_bm25",
     "ray",
     "requests",
+    "tantivy",
     "torch",
     "transformers",
     "vllm",

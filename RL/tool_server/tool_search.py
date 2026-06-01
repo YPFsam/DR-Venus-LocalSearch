@@ -1,7 +1,7 @@
 '''
-Search tool with local BM25 server support.
+Search tool with local search server support.
 
-When USE_LOCAL_SEARCH=true (default), sends HTTP requests to a local BM25
+When USE_LOCAL_SEARCH=true (default), sends HTTP requests to a local
 search server instead of the Serper API. This keeps each Ray worker stateless.
 
 When USE_LOCAL_SEARCH=false, falls back to the original Serper API.
@@ -36,10 +36,10 @@ class Search(BaseTool):
     def __init__(self, cfg: Optional[dict] = None):
         super().__init__(cfg)
 
-    # ── Local BM25 server (stateless HTTP) ────────────────────────────────
+    # ── Local search server (stateless HTTP) ──────────────────────────────
 
     def _search_local_batch(self, queries: List[str]) -> List[str]:
-        """Query local BM25 server once and format Serper-compatible results."""
+        """Query local search server once and format Serper-compatible results."""
         import requests
 
         try:
