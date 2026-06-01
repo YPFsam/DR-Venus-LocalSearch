@@ -7,9 +7,15 @@ set -o pipefail
 # the sourced file so that child processes inherit them.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "$SCRIPT_DIR/.env" ]; then
+    # Treat .env as project defaults. Explicit environment variables supplied
+    # by the caller remain authoritative for smoke tests and one-off overrides.
+    SAVED_EXPORTS="$(mktemp)"
+    export -p > "$SAVED_EXPORTS"
     set -a
     source "$SCRIPT_DIR/.env"
     set +a
+    source "$SAVED_EXPORTS"
+    rm -f "$SAVED_EXPORTS"
 else
     echo "[train_igpo.sh] WARNING: $SCRIPT_DIR/.env not found; copy .env.example to .env and configure the run." >&2
 fi
@@ -77,7 +83,7 @@ VALID_REWARD_TYPE=${VALID_REWARD_TYPE:-"f1_em_noformatf1"}
 MASK_TOOL_RESPONSE=true               # mask tool_response tokens in policy loss
 
 # ── Local Search Configuration ──
-USE_LOCAL_SEARCH=${USE_LOCAL_SEARCH:-"true"}          # true=local BM25 HTTP server, false=Serper+Jina+LLM
+USE_LOCAL_SEARCH=${USE_LOCAL_SEARCH:-"true"}          # true=local retrieval HTTP server, false=Serper+Jina+LLM
 LOCAL_SEARCH_SERVER_URL=${LOCAL_SEARCH_SERVER_URL:-"http://localhost:8890"}
 LOCAL_SEARCH_TOPK=${LOCAL_SEARCH_TOPK:-10}
 TRACE_SAVE_INTERVAL=${TRACE_SAVE_INTERVAL:-10}

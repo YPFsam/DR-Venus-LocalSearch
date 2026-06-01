@@ -6,6 +6,10 @@ machine with four 80 GB A100 or A800 GPUs. It starts from the official
 checkpoint and uses a local Wikipedia retrieval service instead of Serper and
 Jina.
 
+For a GPU-provider handoff, use the complete Chinese runbook:
+[`VENDOR_TRAINING_GUIDE.zh-CN.md`](VENDOR_TRAINING_GUIDE.zh-CN.md). It documents
+the one-command readiness workflow and detached formal training launcher.
+
 The official RL checkpoint card states that RL uses
 [`Zchu/REDSearcher_RL_1K`](https://huggingface.co/datasets/Zchu/REDSearcher_RL_1K):
 1,000 curated query-answer pairs. The tracked `data/train.parquet` file contains
@@ -53,19 +57,28 @@ a formal RL run.
 
 ## 3. Quick Vendor Bootstrap
 
-After the provider has installed the NVIDIA driver, CUDA-compatible Python
-environment, PyTorch, vLLM, and the packages in `requirements.txt`, it can run:
+After the provider has installed the NVIDIA driver and CUDA toolkit, it can use
+the bundled environment installer and readiness workflow:
 
 ```bash
 cd DR-Venus/RL
+bash scripts/install_vendor_env.sh
 source .venv/bin/activate
-bash scripts/bootstrap_vendor.sh
+bash scripts/vendor_train.sh ready
 ```
 
-This command downloads the official SFT checkpoint when missing, creates `.env`
-when missing, downloads and converts the official REDSearcher RL 1K data, and
-builds the Tantivy index when missing. It does not rebuild an existing index.
-The default bootstrap index contains 500,000 passages.
+`vendor_train.sh ready` downloads the official SFT checkpoint when missing,
+creates `.env` when missing, downloads and converts the official REDSearcher RL
+1K data, builds the Tantivy index when missing, benchmarks retrieval, runs the
+four-GPU preflight, and executes a one-step smoke training. It does not rebuild
+a matching existing index. The default bootstrap index contains 500,000
+passages.
+
+After the smoke run succeeds, launch detached formal training:
+
+```bash
+bash scripts/vendor_train.sh launch
+```
 
 The remaining sections document each step separately for troubleshooting and
 custom deployments.
@@ -83,7 +96,7 @@ python -m pip install --upgrade pip setuptools wheel
 
 Install a CUDA-compatible PyTorch and vLLM stack first, then install the project
 dependencies. Follow the current
-[vLLM GPU installation guide](https://docs.vllm.ai/en/latest/getting_started/installation/gpu/)
+[vLLM GPU installation guide](https://docs.vllm.ai/en/stable/getting_started/installation/gpu/)
 when choosing wheels for the target machine.
 
 ```bash

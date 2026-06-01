@@ -4,13 +4,12 @@
 # The torch / CUDA / flash-attn / vllm stack is intentionally NOT listed here
 # because their wheels are pinned to specific CUDA ABIs and must be installed
 # in the right order BEFORE this file. See README.md "Installation" for the
-# recommended sequence (typically: torch → flash-attn → vllm → this file).
+# recommended sequence (typically: vllm GPU stack → flash-attn → this file).
 #
 # Install order on a fresh environment:
-#     pip install torch==<ver> --index-url https://download.pytorch.org/whl/cu<cuda>
-#     pip install flash-attn --no-build-isolation
-#     pip install vllm==<matching-ver>
-#     pip install -r requirements.txt
+#     uv pip install vllm --torch-backend=auto
+#     uv pip install flash-attn --no-build-isolation
+#     uv pip install -r requirements.txt
 # =============================================================================
 
 
