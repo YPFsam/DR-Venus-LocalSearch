@@ -196,11 +196,17 @@ pip install -r requirements.txt
 bash train_igpo.sh
 ```
 
-> See [`RL/README.md`](RL/README.md) for reward configuration, rollout setup, and troubleshooting.
+> This branch includes a four-GPU local-retrieval setup. See
+> [`RL/README.md`](RL/README.md) for the official REDSearcher RL 1K conversion,
+> local BM25 preparation, preflight checks, and the smoke-run procedure.
 
 ## 🔌 External Services
 
-Both [`Inference/`](Inference/) and [`RL/`](RL/) depend on external tools and model endpoints. SFT does **not** require these.
+The original online [`Inference/`](Inference/) and [`RL/`](RL/) paths depend on
+external tools and model endpoints. The four-GPU local-retrieval RL path in
+[`RL/README.md`](RL/README.md) uses a local BM25 service and deterministic F1
+reward, so it does not require these APIs after preparation. SFT does **not**
+require them either.
 
 | Service | Purpose |
 |:--------|:--------|

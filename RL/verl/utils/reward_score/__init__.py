@@ -16,6 +16,28 @@
 from verl.utils.import_utils import deprecated
 
 
+_QA_DATA_SOURCES = {
+    "nq",
+    "2wiki",
+    "Bamboogle",
+    "hotpotqa",
+    "musique",
+    "tq",
+    "popqa",
+    "browse_comp",
+    "browse_comp_zh",
+    "xbench_deepsearch",
+    "hotpot",
+    "zhihu",
+    "webshaper",
+    "redsearcher",
+}
+
+
+def _is_qa_data_source(data_source):
+    return data_source in _QA_DATA_SOURCES or "browse_comp" in data_source
+
+
 def default_compute_score(
     data_source,
     prompt_str,
@@ -55,7 +77,7 @@ def default_compute_score(
             reslist = llm_judge.compute_score_batch(prompt_str, solution_str, ground_truth, data_source, batch_size, is_valid, tokenizer)
         else:
             for data_source_e, solution_str_e, ground_truth_e in zip(data_source, solution_str, ground_truth):
-                if data_source_e in ['nq', "2wiki", "Bamboogle", "hotpotqa", "musique", "tq", "popqa", "browse_comp", "browse_comp_zh", "xbench_deepsearch", "hotpot", "zhihu", "webshaper"] or 'browse_comp' in data_source_e:
+                if _is_qa_data_source(data_source_e):
                     from . import format_and_f1
                     res = format_and_f1.compute_score(solution_str_e, ground_truth_e, data_source_e, val_type=val_type)
                     reslist.append(res)
@@ -111,7 +133,7 @@ def default_compute_score(
         from . import geo3k
 
         res = geo3k.compute_score(solution_str, ground_truth)
-    elif data_source in ['nq', "2wiki", "Bamboogle", "hotpotqa", "musique", "tq", "popqa", "browse_comp", "browse_comp_zh", "xbench_deepsearch", "hotpot", "zhihu", "webshaper"]:
+    elif _is_qa_data_source(data_source):
         if info_gain_reward is not None and len(info_gain_reward) > 0:
             from . import info_gain
             res = info_gain.compute_score(solution_str, ground_truth, data_source,

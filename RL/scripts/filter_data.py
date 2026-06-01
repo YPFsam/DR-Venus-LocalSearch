@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""Filter and split training data for reduced-scale experiments.
+"""Optionally filter generic QA data for non-default experiments.
 
 This script:
 1. Reads the original train.parquet (80K samples)
 2. Optionally filters by data_source
-3. Samples a subset (e.g., 40K) with balanced data_source distribution
+3. Samples a subset with balanced data_source distribution
 4. Writes the filtered subset to a new parquet file
 
-Usage:
-    # Filter to 40K samples (balanced across data sources)
-    python filter_data.py --input data/train.parquet --output data/train_40k.parquet --num_samples 40000
+The default local RL workflow uses scripts/prepare_redsearcher_data.py instead.
 
-    # Filter to 40K with specific data sources
-    python filter_data.py --input data/train.parquet --output data/train_40k.parquet \
+Usage:
+    # Filter to a generic 40K subset (balanced across data sources)
+    python filter_data.py --input data/train.parquet --output data/train_subset_40k.parquet --num_samples 40000
+
+    # Filter a generic subset to specific data sources
+    python filter_data.py --input data/train.parquet --output data/train_subset_40k.parquet \
         --num_samples 40000 --data_sources nq,2wiki,tq
 
     # Just shuffle and keep all

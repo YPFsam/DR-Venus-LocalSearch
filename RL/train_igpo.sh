@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+set -o pipefail
 
 # Load project-local .env first (API_KEY / SERPER_KEY_ID / JUDGE_MODEL_NAME /
 # GLOO_SOCKET_IFNAME, etc.). `set -a` auto-exports every variable assigned by
@@ -11,40 +11,52 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     source "$SCRIPT_DIR/.env"
     set +a
 else
-    echo "[train_igpo.sh] WARNING: $SCRIPT_DIR/.env not found; copy .env.example to .env and fill in credentials." >&2
+    echo "[train_igpo.sh] WARNING: $SCRIPT_DIR/.env not found; copy .env.example to .env and configure the run." >&2
+fi
+cd "$SCRIPT_DIR"
+
+if [ "${DEBUG_SHELL:-false}" = "true" ]; then
+    set -x
 fi
 
 export GRPC_PYTHON_BUILD_WITH_CYTHON=1 
 
 # ── Run identity (used by wandb / tensorboard / checkpoint dirs) ──────────
 # Set these to whatever you want to see in your experiment tracker.
-export project_name="PROJECT_NAME"
+export project_name=${PROJECT_NAME:-"dr-venus-local-rl"}
 export RAY_memory_monitor_refresh_ms=0
 export PYTHONFAULTHANDLER=1
 export TORCH_DISABLE_ADDR2LINE=1
 export NCCL_DEBUG=WARN
 export TORCH_NCCL_ENABLE_MONITORING=0
 
-export experiment_name="EXPERIMENT_NAME"
+export experiment_name=${EXPERIMENT_NAME:-"dr-venus-4b-local-search-4gpu"}
 export PET_NODE_RANK=0
 
 # ── Paths (EDIT THESE for your environment) ───────────────────────────────
-# MODEL_PATH  : local path (or HF repo id) of the starting checkpoint.
+# MODEL_PATH  : local path of the downloaded inclusionAI/DR-Venus-4B-SFT checkpoint.
 # OUTPUT      : directory for checkpoints, rollout dumps, and training.log.
 # EVAL_LOG_PATH: directory for validation traces.
 # All three may be absolute or relative to this script's working dir.
-export MODEL_PATH="/path/to/your/base_model"
-export OUTPUT="./output"
-export EVAL_LOG_PATH="./eval_log"
-export _GPU_NUM=${NUM_GPUS:-$(nvidia-smi -L 2>/dev/null | wc -l)}
-if [ "$_GPU_NUM" -le 0 ] 2>/dev/null || [ -z "$_GPU_NUM" ]; then
-    _GPU_NUM=4
-fi
+export MODEL_PATH=${MODEL_PATH:-""}
+export OUTPUT=${OUTPUT:-"./output"}
+export EVAL_LOG_PATH=${EVAL_LOG_PATH:-"./eval_log"}
+export TRAIN_FILE=${TRAIN_FILE:-"data/redsearcher_rl_1k.parquet"}
+export VAL_FILE=${VAL_FILE:-"data/test.parquet"}
+export EXPECTED_TRAIN_ROWS=${EXPECTED_TRAIN_ROWS:-1000}
+export _GPU_NUM=${NUM_GPUS:-4}
+export LOGGER_BACKENDS=${LOGGER_BACKENDS:-"['console','tensorboard','wandb']"}
+export SAVE_FREQ=${SAVE_FREQ:-5}
+export RESUME_MODE=${RESUME_MODE:-"auto"}
+export RESUME_FROM_PATH=${RESUME_FROM_PATH:-""}
+export MAX_ACTOR_CKPT_TO_KEEP=${MAX_ACTOR_CKPT_TO_KEEP:-2}
+export MAX_CRITIC_CKPT_TO_KEEP=${MAX_CRITIC_CKPT_TO_KEEP:-2}
+export MAX_LOCAL_CKPT_TO_KEEP=${MAX_LOCAL_CKPT_TO_KEEP:-2}
 mkdir -p "$OUTPUT"
 mkdir -p "$EVAL_LOG_PATH"
 
 # ── Training Control ──
-TOTAL_TRAINING_STEPS=""                # e.g. "10" for quick verification; "" = derive from epochs
+TOTAL_TRAINING_STEPS=${TOTAL_TRAINING_STEPS:-""}      # e.g. "1" for quick verification; "" = derive from epochs
 
 # ── Info-Gain Reward (IGPO) Configuration ──
 USE_INFO_GAIN=true                    # master switch
@@ -61,12 +73,15 @@ FORMAT_PENALTY_SCALE=1.0              # penalty magnitude (applied as -1.0 * sca
 # paper-reproducibility; set IGPO_CROSSCHECK=N to sample-validate when enabled.
 USE_ROLLOUT_IG=false
 TRAIN_REWARD_TYPE=${TRAIN_REWARD_TYPE:-"f1"}          # "llm" (LLM judge) or "f1"
+VALID_REWARD_TYPE=${VALID_REWARD_TYPE:-"f1_em_noformatf1"}
 MASK_TOOL_RESPONSE=true               # mask tool_response tokens in policy loss
 
 # ── Local Search Configuration ──
 USE_LOCAL_SEARCH=${USE_LOCAL_SEARCH:-"true"}          # true=local BM25 HTTP server, false=Serper+Jina+LLM
 LOCAL_SEARCH_SERVER_URL=${LOCAL_SEARCH_SERVER_URL:-"http://localhost:8890"}
 LOCAL_SEARCH_TOPK=${LOCAL_SEARCH_TOPK:-10}
+TRACE_SAVE_INTERVAL=${TRACE_SAVE_INTERVAL:-10}
+TRACE_MAX_SAMPLES=${TRACE_MAX_SAMPLES:-8}
 
 # ── Rollout Mode ──
 USE_ASYNC_ROLLOUT=true                # true=async agent loop, false=sync generation
@@ -101,6 +116,11 @@ MAX_PROMPT_LEN=${MAX_PROMPT_LEN:-120000}             # dataset filter + sync pro
 MAX_RESPONSE_LEN=${MAX_RESPONSE_LEN:-8192}           # per-turn generation limit
 ULYSSES_SP_SIZE=${ULYSSES_SP_SIZE:-4}                 # sequence parallel size (4 for 4-GPU)
 ASYNC_PROMPT_PAD=${ASYNC_PROMPT_PAD:-1024}           # async prompt padding
+TRAIN_BATCH_SIZE=${TRAIN_BATCH_SIZE:-8}
+PPO_MINI_BATCH_SIZE=${PPO_MINI_BATCH_SIZE:-64}
+TP_SIZE=${TP_SIZE:-2}
+ROLLOUT_N=${ROLLOUT_N:-8}
+GPU_MEMORY_UTILIZATION=${GPU_MEMORY_UTILIZATION:-0.80}
 
 if [ "$USE_ASYNC_ROLLOUT" = "true" ]; then
     # Async training seq ≤ ASYNC_PROMPT_PAD + MAX_MODEL_LEN
@@ -121,6 +141,28 @@ echo "Mode: $([ "$USE_ASYNC_ROLLOUT" = "true" ] && echo ASYNC || echo SYNC)"
 echo "MAX_MODEL_LEN=${MAX_MODEL_LEN}, MAX_PROMPT_LEN=${MAX_PROMPT_LEN}, MAX_RESPONSE_LEN=${MAX_RESPONSE_LEN}"
 [ "$USE_ASYNC_ROLLOUT" = "true" ] && echo "ASYNC_PROMPT_PAD=${ASYNC_PROMPT_PAD}"
 echo "PPO_MAX_TOKEN_LEN=${PPO_MAX_TOKEN_LEN} (effective: $((PPO_MAX_TOKEN_LEN * ULYSSES_SP_SIZE)))"
+
+if [ "${SKIP_PREFLIGHT:-false}" != "true" ]; then
+    python3 scripts/preflight_rl.py \
+        --model_path "$MODEL_PATH" \
+        --train_file "$TRAIN_FILE" \
+        --val_file "$VAL_FILE" \
+        --expected_train_rows "$EXPECTED_TRAIN_ROWS" \
+        --num_gpus "$_GPU_NUM" \
+        --tp_size "$TP_SIZE" \
+        --ulysses_sp_size "$ULYSSES_SP_SIZE" \
+        --train_batch_size "$TRAIN_BATCH_SIZE" \
+        --ppo_mini_batch_size "$PPO_MINI_BATCH_SIZE" \
+        --rollout_n "$ROLLOUT_N" \
+        --use_local_search "$USE_LOCAL_SEARCH" \
+        --local_search_server_url "$LOCAL_SEARCH_SERVER_URL" \
+        --allow_remote_model "${ALLOW_REMOTE_MODEL_PATH:-false}" || exit 1
+fi
+
+if [ "${PRECHECK_ONLY:-false}" = "true" ]; then
+    echo "[train_igpo.sh] Preflight completed; PRECHECK_ONLY=true, exiting."
+    exit 0
+fi
 
 # Debug toggles (unset by default for best performance):
 #   IGPO_VERIFY_ASYNC=1       -> enables dual-path async verification
@@ -150,20 +192,20 @@ python3 -m verl.trainer.main_ppo \
     algorithm.ig_weight=${IG_WEIGHT} \
     algorithm.use_format_penalty=${USE_FORMAT_PENALTY} \
     algorithm.format_penalty_scale=${FORMAT_PENALTY_SCALE} \
-    data.train_files=${TRAIN_FILE:-data/train_40k.parquet} \
-    data.val_files=data/test.parquet \
-    data.train_batch_size=${TRAIN_BATCH_SIZE:-8} \
+    data.train_files=${TRAIN_FILE} \
+    data.val_files=${VAL_FILE} \
+    data.train_batch_size=${TRAIN_BATCH_SIZE} \
     data.max_prompt_length=${MAX_PROMPT_LEN} \
     data.max_response_length=${MAX_RESPONSE_LEN} \
     +data.max_model_len=${MAX_MODEL_LEN} \
     actor_rollout_ref.model.path=${MODEL_PATH} \
     actor_rollout_ref.model.use_remove_padding=true \
     actor_rollout_ref.actor.optim.lr=1e-6 \
-    actor_rollout_ref.actor.ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE:-64} \
+    actor_rollout_ref.actor.ppo_mini_batch_size=${PPO_MINI_BATCH_SIZE} \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=1 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=1 \
-    actor_rollout_ref.rollout.tensor_model_parallel_size=${TP_SIZE:-2} \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.9 \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=${TP_SIZE} \
+    actor_rollout_ref.rollout.gpu_memory_utilization=${GPU_MEMORY_UTILIZATION} \
     actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
     actor_rollout_ref.rollout.disable_log_stats=false \
     actor_rollout_ref.rollout.free_cache_engine=True \
@@ -187,30 +229,35 @@ python3 -m verl.trainer.main_ppo \
     critic.ppo_micro_batch_size_per_gpu=1 \
     algorithm.gamma=0.95 \
     algorithm.kl_ctrl.kl_coef=0.001 \
-    trainer.logger=['console','tensorboard'] \
+    trainer.logger=${LOGGER_BACKENDS} \
     trainer.project_name=${project_name} \
     trainer.experiment_name=${experiment_name} \
     trainer.val_before_train=false \
     trainer.default_hdfs_dir=null \
     trainer.n_gpus_per_node=$_GPU_NUM \
     trainer.nnodes=1 \
-    trainer.save_freq=5 \
+    trainer.save_freq=${SAVE_FREQ} \
     trainer.test_freq=-1 \
     trainer.validation_data_dir=${EVAL_LOG_PATH} \
     trainer.default_local_dir=${OUTPUT} \
-    agent_grpo.n=8 \
+    trainer.resume_mode=${RESUME_MODE} \
+    trainer.max_actor_ckpt_to_keep=${MAX_ACTOR_CKPT_TO_KEEP} \
+    trainer.max_critic_ckpt_to_keep=${MAX_CRITIC_CKPT_TO_KEEP} \
+    trainer.max_local_ckpt_to_keep=${MAX_LOCAL_CKPT_TO_KEEP} \
+    agent_grpo.n=${ROLLOUT_N} \
     max_turns=${MAX_TURNS:-50} \
     +tool_timeout=150 \
-    +trace_save_interval=10 \
-    +trace_max_samples=0 \
+    +trace_save_interval=${TRACE_SAVE_INTERVAL} \
+    +trace_max_samples=${TRACE_MAX_SAMPLES} \
     search_engine=online_search \
     reward_model.train_reward_type=${TRAIN_REWARD_TYPE} \
-    +reward_model.valid_reward_type=llm_em_noformatf1 \
+    +reward_model.valid_reward_type=${VALID_REWARD_TYPE} \
     reward_model.reward_manager='naive_batch' \
     +reward_model.reward_kwargs.deepthink_disabled=true \
     data.return_raw_chat=true \
     trainer.total_epochs=1 \
     ${TOTAL_TRAINING_STEPS:+trainer.total_training_steps=${TOTAL_TRAINING_STEPS}} \
+    ${RESUME_FROM_PATH:+trainer.resume_from_path=${RESUME_FROM_PATH}} \
     $([ "$USE_ASYNC_ROLLOUT" = "true" ] && echo "actor_rollout_ref.rollout.mode=async" || true) \
     $([ "$USE_ASYNC_ROLLOUT" = "true" ] && echo "actor_rollout_ref.rollout.prompt_length=${ASYNC_PROMPT_PAD}" || true) \
     $([ "$USE_ASYNC_ROLLOUT" = "true" ] && echo "actor_rollout_ref.rollout.response_length=${MAX_RESPONSE_LEN}" || true) \
@@ -218,15 +265,16 @@ python3 -m verl.trainer.main_ppo \
     $([ "$USE_ASYNC_ROLLOUT" = "true" ] && echo "actor_rollout_ref.rollout.agent.agent_loop_config_path=configs/dr_agent_loop.yaml" || true) \
     $([ "$USE_ASYNC_ROLLOUT" = "true" ] && [ -n "$ASYNC_MAX_CONCURRENT_SAMPLES" ] && [ "$ASYNC_MAX_CONCURRENT_SAMPLES" != "null" ] && echo "+actor_rollout_ref.rollout.agent.max_concurrent_samples=${ASYNC_MAX_CONCURRENT_SAMPLES}" || true) \
     $([ "$USE_ASYNC_ROLLOUT" = "true" ] && [ -n "$ASYNC_COMPLETION_CUTOFF" ] && [ "$ASYNC_COMPLETION_CUTOFF" != "null" ] && echo "+actor_rollout_ref.rollout.agent.completion_cutoff=${ASYNC_COMPLETION_CUTOFF}" || true) \
-    > >(stdbuf -oL tee ${OUTPUT}/training.log) 2>&1
+    > >(stdbuf -oL tee "${OUTPUT}/training.log") 2>&1
 
 EXIT_CODE=${PIPESTATUS[0]:-$?}
-echo "[$(date)] Training exited with code: $EXIT_CODE" | tee -a ${OUTPUT}/training.log
-if [ $EXIT_CODE -ne 0 ]; then
-    echo "=== dmesg (last 30 lines) ===" >> ${OUTPUT}/training.log
-    dmesg -T 2>/dev/null | tail -30 >> ${OUTPUT}/training.log
-    echo "=== nvidia-smi ===" >> ${OUTPUT}/training.log
-    nvidia-smi >> ${OUTPUT}/training.log 2>&1
-    echo "=== cgroup memory ===" >> ${OUTPUT}/training.log
-    cat /sys/fs/cgroup/memory/memory.oom_control >> ${OUTPUT}/training.log 2>/dev/null
+echo "[$(date)] Training exited with code: $EXIT_CODE" | tee -a "${OUTPUT}/training.log"
+if [ "$EXIT_CODE" -ne 0 ]; then
+    echo "=== dmesg (last 30 lines) ===" >> "${OUTPUT}/training.log"
+    dmesg -T 2>/dev/null | tail -30 >> "${OUTPUT}/training.log"
+    echo "=== nvidia-smi ===" >> "${OUTPUT}/training.log"
+    nvidia-smi >> "${OUTPUT}/training.log" 2>&1
+    echo "=== cgroup memory ===" >> "${OUTPUT}/training.log"
+    cat /sys/fs/cgroup/memory/memory.oom_control >> "${OUTPUT}/training.log" 2>/dev/null
 fi
+exit "$EXIT_CODE"

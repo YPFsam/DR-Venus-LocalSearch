@@ -4,6 +4,7 @@ https://github.com/Alibaba-NLP/DeepResearch/blob/main/inference/prompt.py
 '''
 
 import os
+from datetime import date
 
 EXTRACTOR_PROMPT = """Please process the following webpage content and user goal to extract relevant information:
 
@@ -65,10 +66,15 @@ For each function call, return a json object with function name and arguments wi
 {"name": <function-name>, "arguments": <args-json-object>}
 </tool_callDemand>
 
-Current date: 2026-03-01
+Current date: __CURRENT_DATE__
 """
 
-SYSTEM_PROMPT = _SYSTEM_PROMPT_TEMPLATE.replace("__SEARCH_DESC__", _SEARCH_DESC).replace("__VISIT_DESC__", _VISIT_DESC)
+SYSTEM_PROMPT = (
+    _SYSTEM_PROMPT_TEMPLATE
+    .replace("__SEARCH_DESC__", _SEARCH_DESC)
+    .replace("__VISIT_DESC__", _VISIT_DESC)
+    .replace("__CURRENT_DATE__", date.today().isoformat())
+)
 
 
 SUMMARY_PROMPT = """You are a DeepThink model. For a given question, summarize all previous rounds of searches and reasoning:

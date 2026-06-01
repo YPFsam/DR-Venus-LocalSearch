@@ -38,26 +38,34 @@ class Search(BaseTool):
 
     # ── Local BM25 server (stateless HTTP) ────────────────────────────────
 
-    def _search_local(self, query: str) -> str:
-        """Query local BM25 server and format result as Serper-compatible text."""
+    def _search_local_batch(self, queries: List[str]) -> List[str]:
+        """Query local BM25 server once and format Serper-compatible results."""
         import requests
 
         try:
-            resp = requests.post(
+            session = requests.Session()
+            session.trust_env = False
+            resp = session.post(
                 f"{LOCAL_SEARCH_SERVER_URL}/search",
-                json={"queries": [query], "topk": LOCAL_SEARCH_TOPK},
+                json={"queries": queries, "topk": LOCAL_SEARCH_TOPK},
                 timeout=30,
             )
             resp.raise_for_status()
             data = resp.json()
         except Exception as e:
-            return f"No results found for '{query}'. Local search server error: {e}"
+            raise RuntimeError(f"Local search server request failed: {e}") from e
 
         results_list = data.get("results", [])
-        if not results_list:
-            return f"No results found for '{query}'."
+        if len(results_list) != len(queries):
+            raise RuntimeError(
+                f"Local search server returned {len(results_list)} result groups for {len(queries)} queries"
+            )
+        return [
+            self._format_local_results(query, result.get("passages", []))
+            for query, result in zip(queries, results_list)
+        ]
 
-        passages = results_list[0].get("passages", [])
+    def _format_local_results(self, query: str, passages: List[dict]) -> str:
         if not passages:
             return f"No results found for '{query}'."
 
@@ -70,6 +78,9 @@ class Search(BaseTool):
 
         header = f"A Google search for '{query}' found {len(passages)} results:\n\n## Web Results\n"
         return header + "\n\n".join(snippets)
+
+    def _search_local(self, query: str) -> str:
+        return self._search_local_batch([query])[0]
 
     # ── Original Serper API ───────────────────────────────────────────────
 
@@ -141,10 +152,12 @@ class Search(BaseTool):
         if isinstance(query, str):
             response = self.search_with_serp(query)
         else:
-            assert isinstance(query, List)
-            responses = []
-            for q in query:
-                responses.append(self.search_with_serp(q))
+            if not isinstance(query, list) or not all(isinstance(q, str) for q in query):
+                return "[Search] Invalid request format: 'query' must be a string or a list of strings"
+            if USE_LOCAL_SEARCH:
+                responses = self._search_local_batch(query)
+            else:
+                responses = [self.search_with_serp(q) for q in query]
             response = "\n=======\n".join(responses)
 
         return response

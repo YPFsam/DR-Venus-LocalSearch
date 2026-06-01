@@ -20,6 +20,7 @@ This trainer supports model-agonistic model initialization with huggingface
 
 import json
 import os
+import shutil
 import uuid
 import glob
 from collections import defaultdict
@@ -984,6 +985,27 @@ class RayPPOTrainer:
         )
         with open(local_latest_checkpointed_iteration, "w") as f:
             f.write(str(self.global_steps))
+
+        # Worker checkpoint managers only remember paths saved by the current
+        # process. Prune whole step directories here so retention also applies
+        # after restarting and resuming a run.
+        max_local_ckpt_to_keep = self.config.trainer.get("max_local_ckpt_to_keep", None)
+        if isinstance(max_local_ckpt_to_keep, int) and max_local_ckpt_to_keep > 0:
+            local_ckpt_folders = []
+            for ckpt_folder in glob.glob(os.path.join(self.config.trainer.default_local_dir, "global_step_*")):
+                try:
+                    step = int(os.path.basename(ckpt_folder).removeprefix("global_step_"))
+                except ValueError:
+                    continue
+                if os.path.isdir(ckpt_folder):
+                    local_ckpt_folders.append((step, ckpt_folder))
+
+            for _, ckpt_folder in sorted(local_ckpt_folders)[:-max_local_ckpt_to_keep]:
+                abs_ckpt_folder = os.path.abspath(ckpt_folder)
+                if abs_ckpt_folder == os.path.abspath(local_global_step_folder):
+                    continue
+                print(f"Trainer remove previous local checkpoint folder: {abs_ckpt_folder}")
+                shutil.rmtree(abs_ckpt_folder, ignore_errors=True)
 
     def _load_checkpoint(self):
         if self.config.trainer.resume_mode == "disable":

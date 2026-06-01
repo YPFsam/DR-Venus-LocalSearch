@@ -255,6 +255,9 @@ trainer:
   # Maximum number of critic checkpoints to keep
   max_critic_ckpt_to_keep: null
 
+  # Maximum number of complete local global_step_N checkpoint folders to keep
+  max_local_ckpt_to_keep: null
+
   # Timeout (in seconds) for Ray worker to wait for registration
   ray_wait_register_center_timeout: 300
 

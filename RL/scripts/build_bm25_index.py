@@ -6,13 +6,10 @@ splits them into manageable chunks, and builds a BM25 index using the `rank_bm25
 
 Usage:
     # Option 1: Download Wikipedia from HuggingFace (recommended)
-    python build_bm25_index.py --output_dir data/local_search_index --topk_passages 2000000
+    python build_bm25_index.py --output_dir data/local_search_index --topk_passages 100000
 
     # Option 2: Use a local JSONL file
     python build_bm25_index.py --output_dir data/local_search_index --input_file data/wiki_passages.jsonl
-
-    # Option 3: Use Elasticsearch instead of rank_bm25
-    python build_bm25_index.py --output_dir data/local_search_index --use_es --es_host localhost:9200
 
 Output:
     data/local_search_index/
@@ -27,7 +24,7 @@ import os
 import pickle
 import sys
 import time
-from typing import List, Dict, Optional
+from typing import Dict, List
 
 
 def load_passages_from_huggingface(max_passages: int = 2_000_000) -> List[Dict]:
@@ -51,9 +48,9 @@ def load_passages_from_huggingface(max_passages: int = 2_000_000) -> List[Dict]:
     )
 
     passages = []
+    article_count = 0
     for i, article in enumerate(ds):
-        if i >= max_passages:
-            break
+        article_count = i + 1
         text = article.get("text", "").strip()
         title = article.get("title", "").strip()
         if not text or len(text) < 50:
@@ -63,6 +60,8 @@ def load_passages_from_huggingface(max_passages: int = 2_000_000) -> List[Dict]:
         words = text.split()
         chunk_size = 200
         for j in range(0, len(words), chunk_size):
+            if len(passages) >= max_passages:
+                break
             chunk = " ".join(words[j : j + chunk_size])
             if len(chunk.strip()) < 30:
                 continue
@@ -78,7 +77,7 @@ def load_passages_from_huggingface(max_passages: int = 2_000_000) -> List[Dict]:
         if len(passages) >= max_passages:
             break
 
-    print(f"Loaded {len(passages)} passages from {min(i + 1, max_passages)} articles.")
+    print(f"Loaded {len(passages)} passages from {article_count} articles.")
     return passages
 
 
@@ -148,72 +147,14 @@ def build_bm25_index(passages: List[Dict]):
     return bm25
 
 
-def build_elasticsearch_index(passages: List[Dict], es_host: str = "localhost:9200",
-                               index_name: str = "wikipedia"):
-    """Build BM25 index in Elasticsearch.
-
-    Requires Elasticsearch to be running. Start with:
-        docker run -d -p 9200:9200 -e "discovery.type=single-node" elasticsearch:8.10.0
-    """
-    try:
-        from elasticsearch import Elasticsearch, helpers
-    except ImportError:
-        print("ERROR: 'elasticsearch' not installed. Run: pip install elasticsearch")
-        sys.exit(1)
-
-    es = Elasticsearch(f"http://{es_host}")
-    if not es.ping():
-        print(f"ERROR: Cannot connect to Elasticsearch at {es_host}")
-        sys.exit(1)
-
-    # Delete existing index if any
-    if es.indices.exists(index=index_name):
-        es.indices.delete(index=index_name)
-
-    # Create index with BM25 analyzer
-    es.indices.create(
-        index=index_name,
-        body={
-            "settings": {
-                "number_of_shards": 1,
-                "index": {"similarity": {"default": {"type": "BM25"}}},
-            },
-            "mappings": {
-                "properties": {
-                    "title": {"type": "text"},
-                    "text": {"type": "text"},
-                }
-            },
-        },
-    )
-
-    # Bulk index
-    actions = [
-        {
-            "_index": index_name,
-            "_id": p["id"],
-            "_source": {"title": p["title"], "text": p["text"]},
-        }
-        for p in passages
-    ]
-    print(f"Indexing {len(actions)} passages into Elasticsearch...")
-    helpers.bulk(es, actions, chunk_size=5000)
-    es.indices.refresh(index=index_name)
-    print(f"Done. Indexed {len(actions)} passages.")
-
-
 def main():
     parser = argparse.ArgumentParser(description="Build BM25 index for local retrieval")
     parser.add_argument("--output_dir", default="data/local_search_index",
                         help="Output directory for index files")
     parser.add_argument("--input_file", default=None,
                         help="Local JSONL file with passages (if not using HuggingFace)")
-    parser.add_argument("--topk_passages", type=int, default=2_000_000,
-                        help="Max number of passages to index (default: 2M)")
-    parser.add_argument("--use_es", action="store_true",
-                        help="Use Elasticsearch instead of rank_bm25")
-    parser.add_argument("--es_host", default="localhost:9200",
-                        help="Elasticsearch host (default: localhost:9200)")
+    parser.add_argument("--topk_passages", type=int, default=100_000,
+                        help="Max number of passages to index (default: 100K)")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -228,38 +169,32 @@ def main():
         print("ERROR: No passages loaded.")
         sys.exit(1)
 
-    if args.use_es:
-        build_elasticsearch_index(passages, args.es_host)
-    else:
-        # Save passages
-        passages_path = os.path.join(args.output_dir, "passages.jsonl")
-        print(f"Saving passages to {passages_path}...")
-        with open(passages_path, "w", encoding="utf-8") as f:
-            for p in passages:
-                f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    passages_path = os.path.join(args.output_dir, "passages.jsonl")
+    print(f"Saving passages to {passages_path}...")
+    with open(passages_path, "w", encoding="utf-8") as f:
+        for p in passages:
+            f.write(json.dumps(p, ensure_ascii=False) + "\n")
 
-        # Build and save BM25 index
-        bm25 = build_bm25_index(passages)
-        bm25_path = os.path.join(args.output_dir, "bm25_index.pkl")
-        print(f"Saving BM25 index to {bm25_path}...")
-        with open(bm25_path, "wb") as f:
-            pickle.dump(bm25, f)
+    bm25 = build_bm25_index(passages)
+    bm25_path = os.path.join(args.output_dir, "bm25_index.pkl")
+    print(f"Saving BM25 index to {bm25_path}...")
+    with open(bm25_path, "wb") as f:
+        pickle.dump(bm25, f)
 
-        # Save metadata
-        avg_len = sum(len(p["text"].split()) for p in passages) / len(passages)
-        metadata = {
-            "num_passages": len(passages),
-            "avg_passage_length": avg_len,
-            "source": args.input_file or "wikimedia/wikipedia-20231101.en",
-        }
-        metadata_path = os.path.join(args.output_dir, "metadata.json")
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=2)
+    avg_len = sum(len(p["text"].split()) for p in passages) / len(passages)
+    metadata = {
+        "num_passages": len(passages),
+        "avg_passage_length": avg_len,
+        "source": args.input_file or "wikimedia/wikipedia-20231101.en",
+    }
+    metadata_path = os.path.join(args.output_dir, "metadata.json")
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
 
-        print(f"\nIndex built successfully!")
-        print(f"  Passages: {len(passages)}")
-        print(f"  Avg passage length: {avg_len:.1f} words")
-        print(f"  Output: {args.output_dir}")
+    print(f"\nIndex built successfully!")
+    print(f"  Passages: {len(passages)}")
+    print(f"  Avg passage length: {avg_len:.1f} words")
+    print(f"  Output: {args.output_dir}")
 
 
 if __name__ == "__main__":

@@ -199,8 +199,7 @@ class DRAgentLoop(AgentLoopBase):
             config.trainer.get("default_local_dir", "/tmp"),
             "rollout_traces",
         )
-        import shutil
-        shutil.rmtree(cls._trace_save_dir, ignore_errors=True)
+        os.makedirs(cls._trace_save_dir, exist_ok=True)
 
         # ── Rollout-time IG scoring config (read from env vars) ──
         cls._rollout_ig = os.environ.get("IGPO_ROLLOUT_IG", "0") == "1"

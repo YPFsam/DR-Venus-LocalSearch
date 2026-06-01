@@ -1,321 +1,359 @@
-# IGPO for Ultra Long-Horizon Deep Research
+# DR-Venus RL: Four-GPU Local Retrieval Edition
 
-This repository trains **Deep Research agents in the ultra-long-horizon
-regime** — up to **200+ tool-use turns per rollout** of search, visit, and
-cross-checking — with **IGPO (Information Gain-based Policy Optimization)**,
-proposed by Wang et al. at **ICLR 2026**. At this scale, outcome-only RL
-fails on three fronts: (i) **poor data efficiency** — one terminal reward
-per trajectory wastes supervision on data-scarce agentic tasks; (ii)
-**advantage collapse** — most rollouts share identical returns, driving
-GRPO's advantage toward zero; (iii) **no fine-grained credit assignment**
-— intermediate turns never learn which step actually moved the policy
-closer to the answer. IGPO addresses all three by augmenting the terminal
-reward with a **dense per-turn signal equal to the marginal increase in
-the policy's probability of producing the correct answer**, derived
-directly from the model's belief updates — no external reward model, no
-Monte-Carlo estimation. Combined with outcome rewards inside a GRPO-style
-objective, every turn contributes supervision and training stays stable
-across long trajectories.
+This directory contains a resource-constrained DR-Venus RL setup for one
+machine with four 80 GB A100 or A800 GPUs. It starts from the official
+[`inclusionAI/DR-Venus-4B-SFT`](https://huggingface.co/inclusionAI/DR-Venus-4B-SFT)
+checkpoint and uses a local Wikipedia BM25 service instead of Serper and Jina.
 
-**Original IGPO Paper & Code**
+The official RL checkpoint card states that RL uses
+[`Zchu/REDSearcher_RL_1K`](https://huggingface.co/datasets/Zchu/REDSearcher_RL_1K):
+1,000 curated query-answer pairs. The tracked `data/train.parquet` file contains
+80,000 generic QA examples and is retained for reference only. It is not the
+default training file in this local setup.
 
-[![arXiv](https://img.shields.io/badge/arXiv-2510.14967-b31b1b?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2510.14967)
-[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Paper-FFD21E)](https://huggingface.co/papers/2510.14967)
-[![GitHub](https://img.shields.io/badge/Reference%20Code-GuoqingWang1%2FIGPO-181717?logo=github&logoColor=white)](https://github.com/GuoqingWang1/IGPO)
+## 1. Local Defaults
 
-> If you use this code in your research, please cite the original IGPO paper
-> (see [§6 Citation](#6-citation)).
+| Setting | Published repository script default | Four-GPU local default |
+|---|---:|---:|
+| Starting checkpoint | SFT checkpoint | `inclusionAI/DR-Venus-4B-SFT` |
+| RL training data | repository `data/train.parquet` | converted REDSearcher RL 1K |
+| Retrieval | Serper + Jina | local Wikipedia BM25 HTTP service |
+| Outcome reward | LLM judge | deterministic F1 |
+| GPUs | 16 x A100 in the original run | 4 x 80 GB A100/A800 |
+| Context window | 261K | 131K |
+| Rollout tensor parallel size | 4 | 2 |
+| Ulysses sequence parallel size | 8 | 4 |
+| Training batch size | 16 | 8 |
+| PPO mini-batch size | 128 | 64 |
+| Agent loop workers | 8 | 4 |
+| Maximum turns | 200 | 50 |
 
-### Method Overview
+This is an offline retrieval adaptation, not an exact reproduction of the
+official online-search run. Its metrics should be reported separately.
 
-<p align="center">
-  <img src="images/IGPO.png" alt="IGPO method overview" width="820"/>
-</p>
+## 2. Machine Requirements
 
-<p align="center"><em>Figure reproduced from the original IGPO paper (Wang et al., ICLR 2026). See <a href="https://arxiv.org/abs/2510.14967">arXiv:2510.14967</a> for full details.</em></p>
+- Linux or WSL Ubuntu with four visible 80 GB A100/A800 GPUs.
+- Python 3.10 or newer.
+- A CUDA driver compatible with the PyTorch and vLLM builds you install.
+- Enough host RAM and disk for the chosen Wikipedia passage count.
+- Network access while downloading the model, the 1K RL data, and Wikipedia.
+  After preparation, local-search training does not need external APIs.
 
----
+The default BM25 corpus is 100,000 Wikipedia passages so a new machine can run
+the full workflow without loading a multi-million-passage Python index. Increase
+the corpus only after measuring RAM usage and retrieval latency. `rank_bm25`
+scores the corpus in Python for every query, so a much larger production corpus
+should use a scalable retrieval backend.
 
-## Table of Contents
+The 100,000-passage default is a deployment baseline, not an internet-scale
+corpus and not a guarantee that REDSearcher questions are covered. Measure
+retrieval quality before paying for a formal RL run.
 
-- [1. Installation](#1-installation)
-- [2. API Setup (.env)](#2-api-setup-env)
-  - [2.1 Overview](#21-overview)
-  - [2.2 Web Search — Serper](#22-web-search--serper)
-  - [2.3 Web Visit — Jina Reader](#23-web-visit--jina-reader)
-  - [2.4 Page Summarizer — OpenAI-Compatible LLM](#24-page-summarizer--openai-compatible-llm)
-  - [2.5 LLM-as-Judge — Reward Model](#25-llm-as-judge--reward-model)
-  - [2.6 Networking & Proxy](#26-networking--proxy)
-- [3. Data Preparation](#3-data-preparation)
-- [4. Training](#4-training)
-- [5. Troubleshooting](#5-troubleshooting)
-- [6. Citation](#6-citation)
-- [7. License & Acknowledgements](#7-license--acknowledgements)
+## 3. Quick Vendor Bootstrap
 
----
-
-## 1. Installation
-
-Requires Python 3.10+, CUDA-capable NVIDIA GPU(s), and ~80 GB disk for the
-base model and data.
+After the provider has installed the NVIDIA driver, CUDA-compatible Python
+environment, PyTorch, vLLM, and the packages in `requirements.txt`, it can run:
 
 ```bash
-git clone https://github.com/inclusionAI/DR-Venus
 cd DR-Venus/RL
-
-python -m venv .venv && source .venv/bin/activate    # or use conda
-pip install --upgrade pip
-pip install -r requirements.txt
+source .venv/bin/activate
+bash scripts/bootstrap_vendor.sh
 ```
 
-`flash-attn` is listed in `requirements.txt` and may need a matching CUDA
-toolchain. See the [flash-attention install notes](https://github.com/Dao-AILab/flash-attention#installation-and-features)
-if pip resolution fails.
+This command downloads the official SFT checkpoint when missing, creates `.env`
+when missing, downloads and converts the official REDSearcher RL 1K data, and
+builds the BM25 index when missing. It does not rebuild an existing index.
 
----
+The remaining sections document each step separately for troubleshooting and
+custom deployments.
 
-## 2. API Setup (.env)
+## 4. Install Dependencies
 
-All external services (search / visit / summarization / LLM judge) are
-configured through a single project-root `.env` file (git-ignored).
+Create an isolated environment:
+
+```bash
+cd DR-Venus/RL
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+```
+
+Install a CUDA-compatible PyTorch and vLLM stack first, then install the project
+dependencies. Follow the current
+[vLLM GPU installation guide](https://docs.vllm.ai/en/latest/getting_started/installation/gpu/)
+when choosing wheels for the target machine.
+
+```bash
+pip install vllm
+pip install flash-attn --no-build-isolation
+pip install -r requirements.txt
+pip install -e .
+```
+
+If `flash-attn` installation fails, verify that the CUDA toolkit, compiler, and
+installed PyTorch ABI match before retrying. The runtime preflight checks the
+Python packages needed by this project.
+
+## 5. Download the Official SFT Checkpoint
+
+Install the Hugging Face CLI and download the official SFT checkpoint into a
+local directory. Using a local path avoids simultaneous worker downloads during
+RL startup.
+
+```bash
+pip install --upgrade huggingface_hub
+hf download inclusionAI/DR-Venus-4B-SFT \
+  --local-dir /data/models/DR-Venus-4B-SFT
+```
+
+The Hugging Face CLI documentation for `--local-dir` is available
+[here](https://huggingface.co/docs/huggingface_hub/main/guides/cli).
+For an offline training machine, run the download elsewhere and copy the
+resulting model directory to the same local path.
+
+## 6. Configure the Run
+
+Copy the template and edit at least `MODEL_PATH`:
 
 ```bash
 cp .env.example .env
-# edit .env and fill in the values described below
+sed -n '1,160p' .env
 ```
 
-### 2.1 Overview
-
-| Env var | Consumer | Required? |
-|---|---|---|
-| `SERPER_KEY_ID` | `tool_server/tool_search.py` (web search) | Yes — for rollout |
-| `JINA_API_KEYS` | `tool_server/tool_visit.py` (web visit) | Yes — for rollout |
-| `API_KEY`, `API_BASE`, `SUMMARY_MODEL_NAME` | `tool_server/tool_visit.py` (page summarizer) | Yes — for rollout |
-| `JUDGE_MODEL_NAME` | `verl/utils/reward_score/llm_judge.py` | Yes — when `train_reward_type=llm` (the default) |
-| `JUDGE_API_BASE`, `JUDGE_API_KEY` | same as above | No — only if judge lives on a separate endpoint |
-| `ENABLE_JUDGE_THINKING` | LLM judge thinking toggle | No — defaults to `true` |
-| `PROXY` | `tool_server/tool_visit.py` (Jina requests) | No — only if your network needs a proxy |
-| `GLOO_SOCKET_IFNAME` | PyTorch distributed (Gloo/NCCL NIC selection) | Yes — on multi-GPU/multi-node |
-
-> **Syntax note:** `.env` is sourced by bash. Every line must be valid bash:
-> `KEY=value` (no spaces around `=`), `KEY="value"` (quote if value contains
-> spaces, `:`, `/`, or other shell-special characters). Comments must start
-> at column 0.
-
-### 2.2 Web Search — Serper
-
-`tool_server/tool_search.py` calls `google.serper.dev` for Google-search
-results during agent rollouts.
-
-- Sign up at <https://serper.dev/> (free tier available).
-- Copy your API key into `.env`:
-
-  ```bash
-  SERPER_KEY_ID=your-serper-api-key
-  ```
-
-### 2.3 Web Visit — Jina Reader
-
-`tool_server/tool_visit.py` uses Jina Reader (`https://r.jina.ai/`) to fetch
-clean, LLM-ready page content from arbitrary URLs.
-
-- Sign up at <https://jina.ai/> and grab a Reader API key.
-- Copy into `.env`:
-
-  ```bash
-  JINA_API_KEYS=your-jina-api-key
-  ```
-
-### 2.4 Page Summarizer — OpenAI-Compatible LLM
-
-After a page is fetched, `tool_visit.py` calls a cheap/fast LLM to extract
-and summarize the content relevant to the agent's goal. Any OpenAI-compatible
-endpoint works: **OpenAI**, **DeepSeek**, **vLLM**, **SGLang**, **Ollama**,
-**LiteLLM proxy**, etc.
+The important defaults are:
 
 ```bash
-API_KEY=your-openai-compatible-api-key
-API_BASE=https://your-endpoint/v1                 # must include /v1
-SUMMARY_MODEL_NAME=Qwen3-30B-A3B-Instruct-2507    # example — any small/medium instruction-tuned model works
+MODEL_PATH=/data/models/DR-Venus-4B-SFT
+NUM_GPUS=4
+TRAIN_FILE=data/redsearcher_rl_1k.parquet
+USE_LOCAL_SEARCH=true
+TRAIN_REWARD_TYPE=f1
+GPU_MEMORY_UTILIZATION=0.80
+SAVE_FREQ=5
+RESUME_MODE=auto
+MAX_ACTOR_CKPT_TO_KEEP=2
+MAX_CRITIC_CKPT_TO_KEEP=2
+MAX_LOCAL_CKPT_TO_KEEP=2
 ```
 
-The model should be a small-to-medium, instruction-tuned model. A context
-window of **≥ 128k tokens** is recommended, because raw page content is
-truncated to ~95k tokens before being sent (`tool_server/tool_visit.py`).
+Local BM25 retrieval plus F1 reward does not require Serper, Jina, a page
+summarizer, or an LLM judge API.
 
-### 2.5 LLM-as-Judge — Reward Model
+## 7. Prepare RL Data and Local Retrieval
 
-When `reward_model.train_reward_type=llm` (the default configured in
-`train_igpo.sh`), each rollout's final `<answer>` is judged against the
-ground truth by a strong LLM. The judge verdict becomes the training reward.
-
-**Minimum configuration** (re-use the same gateway as the summarizer):
+The convenience script downloads the official REDSearcher 1K source parquet,
+converts it to the veRL schema, streams Wikipedia from Hugging Face, and builds
+a local BM25 index:
 
 ```bash
-JUDGE_MODEL_NAME=Qwen3-235B-A22B-Instruct-2507    # example — any strong instruction-following LLM works
+bash scripts/prepare_local_rl.sh
 ```
 
-Sufficient when the judge is deployed on the same `API_BASE` as the
-summarizer; the code falls back to `API_BASE` / `API_KEY` when
-`JUDGE_API_BASE` / `JUDGE_API_KEY` are unset. If the judge lives on a
-separate endpoint:
+The generated files are:
+
+```text
+data/redsearcher_rl_1k.parquet
+data/local_search_index/passages.jsonl
+data/local_search_index/bm25_index.pkl
+data/local_search_index/metadata.json
+```
+
+The default index size is 100,000 passages. To request another size:
 
 ```bash
-JUDGE_API_BASE=https://your-judge-endpoint/v1
-JUDGE_API_KEY=your-judge-api-key
-JUDGE_MODEL_NAME=...
+INDEX_PASSAGES=500000 bash scripts/prepare_local_rl.sh
 ```
 
-**Pick a strong judge.** Weak judges silently degrade training. Known-good
-choices include `Qwen3-235B-A22B-Instruct-*`, `DeepSeek-V3`, `gpt-4o`, and
-`claude-3.5-sonnet` (via LiteLLM), but any instruction-tuned model with
-solid verification ability will do.
-
-**Opt-outs.** Set `ENABLE_JUDGE_THINKING=false` if your endpoint rejects the
-Qwen/vLLM-specific `chat_template_kwargs.enable_thinking` field (rare).
-Set `TRAIN_REWARD_TYPE="f1"` in `train_igpo.sh` to replace the LLM judge
-with a deterministic F1 reward — no API keys needed, but accuracy on
-open-ended QA drops.
-
-### 2.6 Networking & Proxy
-
-- **Proxy:** If Serper / Jina / your LLM gateway are only reachable through a
-  corporate proxy:
-
-  ```bash
-  PROXY="http://proxy.example.com:8080"      # or socks5h://...
-  ```
-
-  Leave empty if direct internet access is available. Currently only
-  `tool_visit.py` (Jina requests) consumes this.
-
-- **Multi-GPU NIC:** `GLOO_SOCKET_IFNAME` selects the NIC used by Gloo and
-  NCCL. Run `ip -o link show` to list interfaces. Common values: `eth0`,
-  `ens5`, `ib0` (InfiniBand).
-
----
-
-## 3. Data Preparation
-
-`train_igpo.sh` expects two Parquet files under `data/`:
-
-```
-data/
-├── train.parquet      # training questions + ground-truth answers
-└── test.parquet       # validation set
-```
-
-**Schema** (minimum fields expected by `scrl/` data loaders):
-
-| column | type | notes |
-|---|---|---|
-| `prompt` | `List[{"role":"user","content":str}]` | single-turn user question |
-| `reward_model.ground_truth` | `str` or `List[str]` | gold answer (list → key-path for partial credit) |
-| `data_source` | `str` | e.g. `nq`, `hotpotqa`, `Bamboogle`, `browse_comp`, etc. Controls reward routing in `verl/utils/reward_score/__init__.py`. |
-
-Update the file paths on these lines of `train_igpo.sh` to match your layout:
+Existing index files are reused. To rebuild them intentionally:
 
 ```bash
-data.train_files=data/train.parquet
-data.val_files=data/test.parquet
+FORCE_REBUILD_INDEX=true INDEX_PASSAGES=500000 bash scripts/prepare_local_rl.sh
 ```
 
----
+Use 100,000 passages for the first smoke run. For a paid formal run, compare
+100,000 and 500,000 passages with `evaluate_local_retrieval.py`. A 1,000,000
+passage index can be tried only after measuring host RAM and latency: the
+bundled `rank_bm25` backend scans the full corpus for each query, so 10x more
+passages also makes each search substantially more expensive. Do not select
+1,000,000 passages solely because the index fits on disk.
 
-## 4. Training
+If the training machine cannot access Hugging Face, copy a local JSONL corpus
+to the machine and build the index from it. Each line must contain `title` and
+`text`; `id` is optional.
 
-1. Set the base-model checkpoint path in `train_igpo.sh`:
-
-   ```bash
-   export MODEL_PATH=/path/to/your/base/checkpoint
-   export OUTPUT=/path/to/training/output
-   ```
-
-2. Launch:
-
-   ```bash
-   bash train_igpo.sh
-   ```
-
-   The script auto-loads `.env`, then hands off to
-   `python3 -m verl.trainer.main_ppo` with Hydra-style overrides.
-
-3. Key knobs (edit near the top of `train_igpo.sh`):
-
-   | Variable | Default | Description |
-   |---|---|---|
-   | `USE_INFO_GAIN` | `true` | master switch for IGPO's info-gain reward |
-   | `INFO_GAIN_TYPE` | `log_prob_diff` | IG formulation |
-   | `INFO_GAIN_NORM_MODE` | `scaled_separate` | IG normalization scheme |
-   | `IG_TOOL_FILTER` | `"visit"` | only compute IG on these tool turns |
-   | `TRAIN_REWARD_TYPE` | `"llm"` | `"llm"` (LLM-judge) or `"f1"` |
-   | `USE_ASYNC_ROLLOUT` | `true` | async agent loop (recommended) vs. sync generation |
-   | `TOTAL_TRAINING_STEPS` | `""` | `""` = derive from epochs; set e.g. `"10"` for quick smoke test |
-
----
-
-## 5. Troubleshooting
-
-**`[LLM-Judge] No API base configured`**
-&nbsp;&nbsp;→ `.env` was not sourced. Launch via `bash train_igpo.sh`
-(not `python -m verl.trainer.main_ppo` directly), or export the vars
-manually before launching.
-
-**Judge returns `Error: all retries exhausted`**
-&nbsp;&nbsp;→ Sanity-check reachability of the judge endpoint:
-`curl -H "Authorization: Bearer $API_KEY" $API_BASE/models`.
-
-**Serper returns `None` / `SERPER_KEY=None` in logs**
-&nbsp;&nbsp;→ `tool_server/tool_search.py` freezes `SERPER_KEY_ID` at
-module-import time. If Python was started before `.env` was sourced, the key
-is permanently `None` in that process. Restart via `bash train_igpo.sh`, or
-export `SERPER_KEY_ID` before launching Python.
-
-**Ray worker on a remote node doesn't see my env vars**
-&nbsp;&nbsp;→ Only keys listed in
-`verl.trainer.constants_ppo._PASSTHROUGH_FROM_OS` are forwarded into
-`ray.init(runtime_env={"env_vars": ...})`. If you added a new
-`os.environ.get(...)` anywhere, append the key to that list — otherwise
-remote workers will silently miss it.
-
----
-
-## 6. Citation
-
-The IGPO algorithm implemented here was proposed in the following paper
-([arXiv:2510.14967](https://arxiv.org/abs/2510.14967),
-[Hugging Face](https://huggingface.co/papers/2510.14967),
-[code](https://github.com/GuoqingWang1/IGPO)). If you use this repository or
-IGPO in your own work, please cite:
-
-```bibtex
-@inproceedings{
-wang2026information,
-title={Information Gain-based Policy Optimization: A Simple and Effective Approach for Multi-Turn Search Agents},
-author={Guoqing Wang and Sunhao Dai and Guangze Ye and Zeyu Gan and Wei Yao and Yong Deng and Xiaofeng Wu and Zhenzhe Ying},
-booktitle={The Fourteenth International Conference on Learning Representations},
-year={2026},
-url={https://openreview.net/forum?id=qkWP6phrvZ}
-}
+```bash
+python3 scripts/prepare_redsearcher_data.py
+python3 scripts/build_bm25_index.py \
+  --input_file /data/corpora/wiki_passages.jsonl \
+  --output_dir data/local_search_index
 ```
 
----
+The REDSearcher conversion can also be performed on a connected machine and the
+generated `data/redsearcher_rl_1k.parquet` copied to the training machine.
 
-## 7. License & Acknowledgements
+## 8. Start Retrieval and Validate the Machine
 
-Apache License 2.0 — see `LICENSE` and `Notice.txt`.
+Start the BM25 service in its own terminal:
 
-This repository builds on:
+```bash
+cd DR-Venus/RL
+source .venv/bin/activate
+bash scripts/start_local_search.sh
+```
 
-- [`IGPO`](https://github.com/GuoqingWang1/IGPO) by Wang et al. — the
-  original reference implementation of the Information Gain-based Policy
-  Optimization algorithm (ICLR 2026); this repo adapts IGPO onto the
-  DeepResearcher agent scaffold.
-- [`verl`](https://github.com/volcengine/verl) by ByteDance — the underlying
-  distributed PPO / GRPO trainer.
-- [`DeepResearcher`](https://github.com/GAIR-NLP/DeepResearcher) by GAIR-NLP
-  — the multi-turn search-agent scaffold.
+The server binds to `0.0.0.0:8890`, so a WSL service is reachable from the
+Windows host through `localhost`. Check it from another terminal:
 
-Third-party services configured through `.env`:
-[Serper](https://serper.dev/), [Jina AI](https://jina.ai/), and any
-OpenAI-compatible LLM endpoint of your choice.
+```bash
+NO_PROXY=localhost,127.0.0.1 curl -fsS http://localhost:8890/health
+```
+
+Run the complete preflight without allocating RL workers:
+
+```bash
+python3 scripts/evaluate_local_retrieval.py --sample_size 100
+PRECHECK_ONLY=true bash train_igpo.sh
+```
+
+The preflight verifies:
+
+- required Python modules;
+- local SFT checkpoint and `config.json`;
+- converted 1K training parquet and validation parquet schema;
+- visible GPU count and TP/SP divisibility;
+- GRPO batch alignment;
+- local retrieval `/health`.
+
+`evaluate_local_retrieval.py` separately reports query latency and a
+conservative lexical `answer hit@k` diagnostic. Use `--sample_size 1000` before
+a formal run. It is a retrieval sanity check, not an RL evaluation metric.
+
+## 9. Smoke Run and Formal Training
+
+Run one short training step first:
+
+```bash
+OUTPUT=./output_smoke TOTAL_TRAINING_STEPS=1 MAX_TURNS=5 GPU_MEMORY_UTILIZATION=0.75 \
+  bash train_igpo.sh
+```
+
+After the smoke run succeeds, start the configured one-epoch run:
+
+```bash
+bash train_igpo.sh
+```
+
+Training logs and checkpoints are written to `OUTPUT`, which defaults to
+`./output`. Validation traces are written to `EVAL_LOG_PATH`, which defaults to
+`./eval_log`.
+
+The training command also writes `OUTPUT/training.log`. Local retrieval writes
+a rotating `logs/local_search.log` with batch latency and result counts. Full
+query text is omitted by default; set `LOCAL_SEARCH_LOG_QUERIES=true` only when
+diagnosing retrieval behavior. Rollout traces are stored under
+`OUTPUT/rollout_traces/`, limited to eight samples per step by default.
+
+## 10. Resume and Monitor Training
+
+The default `RESUME_MODE=auto` resumes from the newest
+`OUTPUT/global_step_N/` checkpoint when the same `OUTPUT` directory is
+preserved. Each checkpoint contains actor shards, dataloader state, and IGPO
+warmup state. The default `SAVE_FREQ=5` writes one checkpoint every five
+training steps. `MAX_LOCAL_CKPT_TO_KEEP=2` retains the newest two complete
+checkpoints across process restarts to control disk usage. Actor and critic
+checkpoint managers use the same retention limit during a running process.
+
+To resume automatically:
+
+```bash
+bash train_igpo.sh
+```
+
+To select an explicit checkpoint:
+
+```bash
+RESUME_MODE=resume_path \
+RESUME_FROM_PATH=./output/global_step_5 \
+  bash train_igpo.sh
+```
+
+Do not resume from a smoke run into a formal run unless that is intentional.
+Use a separate `OUTPUT` directory for smoke tests.
+
+The default logger is local TensorBoard:
+
+```bash
+tensorboard --logdir tensorboard_log --host 0.0.0.0 --port 6006
+```
+
+When the GPU machine is remote, use an SSH tunnel and open
+`http://localhost:6006` locally:
+
+```bash
+ssh -L 6006:localhost:6006 user@gpu-host
+```
+
+For web-based real-time monitoring, enable W&B in `.env`:
+
+```bash
+LOGGER_BACKENDS="['console','tensorboard','wandb']"
+WANDB_API_KEY=replace-with-a-dedicated-api-key
+WANDB_ENTITY=your-team-or-user
+WANDB_RUN_ID=dr-venus-4b-local-search-4gpu
+WANDB_RESUME=allow
+```
+
+The provider does not need your W&B password. Give it a dedicated API key or
+place the key in `.env` yourself, and ensure `.env` is not committed or copied
+back with checkpoints. Keeping the same `WANDB_RUN_ID` allows a resumed
+training process to continue writing to the same W&B run.
+
+## 11. Optional Online Mode
+
+The original online tool path is still available:
+
+```bash
+USE_LOCAL_SEARCH=false bash train_igpo.sh
+```
+
+Online mode additionally needs a project `.env` with `SERPER_KEY_ID`,
+`JINA_API_KEYS`, `API_KEY`, `API_BASE`, and `SUMMARY_MODEL_NAME`. If
+`TRAIN_REWARD_TYPE=llm`, also configure `JUDGE_MODEL_NAME` and optionally
+`JUDGE_API_BASE` and `JUDGE_API_KEY`.
+
+## 12. Troubleshooting
+
+**Preflight reports a missing model directory**
+
+Set `MODEL_PATH` in `.env` to the downloaded `DR-Venus-4B-SFT` directory. A
+remote Hugging Face repo ID is intentionally rejected by default. To permit
+runtime downloads explicitly, set `ALLOW_REMOTE_MODEL_PATH=true`.
+
+**Local search health check fails**
+
+Run `bash scripts/start_local_search.sh` in another terminal. If index files are
+missing, run `bash scripts/prepare_local_rl.sh`.
+
+**CUDA out of memory**
+
+Keep `GPU_MEMORY_UTILIZATION=0.75` for the first run. If needed, reduce
+`MAX_MODEL_LEN`, `MAX_TURNS`, or `TRAIN_BATCH_SIZE`. Preserve the TP/SP
+divisibility checks enforced by preflight.
+
+**Local retrieval is too slow**
+
+Start with fewer passages and measure query latency. The bundled server is a
+simple single-process `rank_bm25` baseline; it is intentionally easy to deploy,
+but it is not a high-throughput search engine.
+
+**Collect a troubleshooting bundle**
+
+Run the diagnostics script and send the generated text file together with the
+relevant TensorBoard or W&B run link. It reports package versions, GPU status,
+disk and RAM usage, local-search health, and recent logs without printing
+`.env`:
+
+```bash
+bash scripts/collect_diagnostics.sh
+```

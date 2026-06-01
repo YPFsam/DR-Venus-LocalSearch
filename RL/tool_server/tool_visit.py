@@ -10,7 +10,7 @@ When USE_LOCAL_SEARCH=false, falls back to the original Jina + LLM pipeline.
 import os
 import re
 import time
-from typing import List, Union
+from typing import Union
 
 from qwen_agent.tools.base import BaseTool, register_tool
 
@@ -48,6 +48,7 @@ class Visit(BaseTool):
         Regular http(s):// URLs are rejected with a clear error message.
         """
         import requests as req
+        from urllib.parse import quote
 
         # Extract passage ID from local:// URLs only
         passage_id_match = re.match(r'local://(.+)', url)
@@ -64,8 +65,10 @@ class Visit(BaseTool):
         passage_id = passage_id_match.group(1)
 
         try:
-            resp = req.get(
-                f"{LOCAL_SEARCH_SERVER_URL}/document/{passage_id}",
+            session = req.Session()
+            session.trust_env = False
+            resp = session.get(
+                f"{LOCAL_SEARCH_SERVER_URL}/document/{quote(passage_id, safe='')}",
                 timeout=10,
             )
             if resp.status_code == 404:
@@ -79,13 +82,7 @@ class Visit(BaseTool):
             resp.raise_for_status()
             doc = resp.json()
         except Exception as e:
-            return (
-                f"The useful information in local://{passage_id} for user goal {goal} as follows: \n\n"
-                f"Evidence in page: \n"
-                f"Error retrieving document: {e}\n\n"
-                f"Summary: \n"
-                f"Document retrieval failed.\n\n"
-            )
+            raise RuntimeError(f"Local document server request failed for {passage_id}: {e}") from e
 
         text = doc.get("text", "")
         title = doc.get("title", "")
@@ -233,7 +230,8 @@ class Visit(BaseTool):
             else:
                 response = self._visit_online(url, goal)
         else:
-            assert isinstance(url, List)
+            if not isinstance(url, list) or not all(isinstance(u, str) for u in url):
+                return "[Visit] Invalid request format: 'url' must be a string or a list of strings"
             responses = []
             for u in url:
                 if time.time() - start_time > 900:
@@ -248,6 +246,8 @@ class Visit(BaseTool):
                         else:
                             responses.append(self._visit_online(u, goal))
                     except Exception as e:
+                        if USE_LOCAL_SEARCH:
+                            raise
                         responses.append(f"Error fetching {u}: {str(e)}")
             response = "\n=======\n".join(responses)
 

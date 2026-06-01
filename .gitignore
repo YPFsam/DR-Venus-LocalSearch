@@ -1,0 +1,20 @@
+# Python caches
+__pycache__/
+*.py[cod]
+.venv/
+.cache/
+
+# Local environment files
+.env
+
+# RL generated data and runtime artifacts
+RL/data/downloads/
+RL/data/local_search_index/
+RL/data/redsearcher_rl_1k.parquet
+RL/data/wiki_passages.jsonl
+RL/data/models/
+RL/output*/
+RL/eval_log/
+RL/logs/
+RL/tensorboard_log/
+RL/wandb/
