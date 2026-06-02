@@ -42,6 +42,23 @@ def validate_modules() -> None:
         fail(f"Missing Python modules: {', '.join(missing)}. Install the documented dependencies first.")
 
 
+def validate_tool_protocol() -> None:
+    from scrl.llm_agent.dr_agent_loop import _Flag, _parse_single_response
+    from tool_server.tool_prompt import SUMMARY_PROMPT, SYSTEM_PROMPT
+
+    if "<tool_call>" not in SYSTEM_PROMPT or "<tool_callDemand>" in SYSTEM_PROMPT:
+        fail("SYSTEM_PROMPT must instruct the same <tool_call> protocol parsed by the agent loop.")
+    if "<think>" not in SUMMARY_PROMPT or "<thinkDemand>" in SUMMARY_PROMPT:
+        fail("SUMMARY_PROMPT must use the official <think> protocol.")
+
+    flag, _, payload = _parse_single_response(
+        '<think>look up evidence</think><tool_call>{"name":"search","arguments":{"query":["test"]}}</tool_call>'
+    )
+    if flag != _Flag.CALL or payload.get("name") != "search":
+        fail("Async agent loop cannot parse the documented <tool_call> protocol.")
+    print("[preflight] Tool protocol: <tool_call> parser and prompt agree")
+
+
 def validate_model_path(model_path: str, allow_remote_model: bool) -> None:
     if not model_path or model_path.startswith("/path/to/"):
         fail("MODEL_PATH is not configured. Point it to the downloaded DR-Venus-4B-SFT directory.")
@@ -150,6 +167,7 @@ def main() -> None:
     args = parser.parse_args()
 
     validate_modules()
+    validate_tool_protocol()
     validate_model_path(args.model_path, parse_bool(args.allow_remote_model))
     validate_parquet(args.train_file, args.expected_train_rows, "Training")
     validate_parquet(args.val_file, 0, "Validation")

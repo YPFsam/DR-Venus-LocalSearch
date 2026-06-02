@@ -17,9 +17,8 @@ RL/data/wiki_passages.jsonl
 RL/data/models/
 RL/output*/
 RL/eval_log/
-RL/logs/local_search.pid
-RL/logs/local_search.log
-RL/logs/local_search_console.log
+RL/eval_log_autodl_profile/
+RL/logs/
 RL/tensorboard_log/
 RL/wandb/
 

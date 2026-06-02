@@ -61,10 +61,10 @@ You are provided with function signatures within <tools></tools> XML tags:
 {"type": "function", "function": {"name": "visit", "description": "__VISIT_DESC__", "parameters": {"type": "object", "properties": {"url": {"type": "array", "items": {"type": "string"}, "description": "The URL(s) of the webpage(s) to visit. Can be a single URL or an array of URLs."}, "goal": {"type": "string", "description": "The specific information goal for visiting webpage(s)."}}, "required": ["url", "goal"]}}}
 </tools>
 
-For each function call, return a json object with function name and arguments within <tool_callDemand> XML tags:
-<tool_callDemand>
+For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
 {"name": <function-name>, "arguments": <args-json-object>}
-</tool_callDemand>
+</tool_call>
 
 Current date: __CURRENT_DATE__
 """
@@ -82,12 +82,12 @@ SUMMARY_PROMPT = """You are a DeepThink model. For a given question, summarize a
 2.Minimize token usage.
 3.Retain the original style while condensing, including questions and reasoning phrasing.
 4.Optionally, provide suggestions for next steps in research.
-5.dont use <answer> or <tool_callDemand>
+5.dont use <answer> or <tool_call>
 Your output format should be one of the following two formats:
 
-<thinkDemand>
+<think>
 YOUR THINKING PROCESS
-</thinkDemand>
+</think>
 <summary>
 your summary
 </summary>

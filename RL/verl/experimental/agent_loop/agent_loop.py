@@ -844,17 +844,14 @@ class AgentLoopWorker:
         max_prompt_len = max(inp.prompt_ids.size(-1) for inp in inputs)
         pad_token_id = self.tokenizer.pad_token_id or 0
         for inp in inputs:
-            # Pad prompt side (left-pad) to uniform length
+            # Initial prompts vary slightly across samples; keep the response
+            # boundary aligned before stacking the async rollout batch.
             p_pad = max_prompt_len - inp.prompt_ids.size(-1)
             if p_pad > 0:
                 inp.prompt_ids = F.pad(inp.prompt_ids, (p_pad, 0), value=pad_token_id)
                 inp.input_ids = F.pad(inp.input_ids, (p_pad, 0), value=pad_token_id)
                 inp.attention_mask = F.pad(inp.attention_mask, (p_pad, 0), value=0)
-                if inp.position_ids.dim() == 3:
-                    inp.position_ids = F.pad(inp.position_ids, (p_pad, 0), value=0)
-                else:
-                    inp.position_ids = F.pad(inp.position_ids, (p_pad, 0), value=0)
-            # Pad response side (right-pad) to uniform length
+                inp.position_ids = F.pad(inp.position_ids, (p_pad, 0), value=0)
             r_pad = max_response_len - inp.response_ids.size(-1)
             if r_pad > 0:
                 inp.response_ids = F.pad(inp.response_ids, (0, r_pad), value=pad_token_id)

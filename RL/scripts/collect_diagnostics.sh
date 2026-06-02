@@ -36,8 +36,23 @@ run_optional uname -a
 run_optional python3 --version
 run_optional nvidia-smi
 run_optional free -h
+run_optional ulimit -a
 run_optional df -h .
 run_optional curl -fsS "$LOCAL_SEARCH_SERVER_URL/health"
+
+echo
+echo "### cgroup memory"
+for memory_file in \
+    /sys/fs/cgroup/memory.events \
+    /sys/fs/cgroup/memory.current \
+    /sys/fs/cgroup/memory.max \
+    /sys/fs/cgroup/memory.peak \
+    /sys/fs/cgroup/memory/memory.oom_control; do
+    if [ -f "$memory_file" ]; then
+        echo "--- $memory_file ---"
+        cat "$memory_file" || true
+    fi
+done
 
 if [ -f data/local_search_index/metadata.json ]; then
     run_optional cat data/local_search_index/metadata.json
@@ -59,6 +74,20 @@ fi
 
 if [ -f "$LOCAL_SEARCH_LOG_FILE" ]; then
     run_optional tail -n 200 "$LOCAL_SEARCH_LOG_FILE"
+fi
+
+if [ -d /tmp/ray/session_latest/logs ]; then
+    echo
+    echo "### Ray error logs"
+    while IFS= read -r ray_log; do
+        echo
+        echo "--- $ray_log ---"
+        tail -n 160 "$ray_log" || true
+    done < <(
+        find /tmp/ray/session_latest/logs -maxdepth 1 -type f \
+            \( -name 'raylet.err' -o -name 'raylet.out' -o -name 'worker-*.err' -o -name 'python-core-worker-*.log' \) \
+            | sort | tail -n 40
+    )
 fi
 
 echo

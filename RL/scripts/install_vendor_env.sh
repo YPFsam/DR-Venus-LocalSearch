@@ -7,8 +7,10 @@ cd "$RL_DIR"
 
 PYTHON_BIN=${PYTHON_BIN:-python3}
 VENV_DIR=${VENV_DIR:-.venv}
-VLLM_SPEC=${VLLM_SPEC:-vllm}
+VLLM_SPEC=${VLLM_SPEC:-vllm==0.8.5}
 INSTALL_FLASH_ATTN=${INSTALL_FLASH_ATTN:-true}
+FLASH_ATTN_WHEEL_URL=${FLASH_ATTN_WHEEL_URL:-https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp312-cp312-linux_x86_64.whl}
+FLASH_ATTN_WHEEL_DIR=${FLASH_ATTN_WHEEL_DIR:-$HOME/.cache/dr-venus/wheels}
 UV_BIN=${UV_BIN:-}
 
 fail() {
@@ -25,8 +27,12 @@ command -v nvidia-smi >/dev/null 2>&1 || fail "nvidia-smi not found. Install the
 "$PYTHON_BIN" - <<'PY'
 import sys
 
-if sys.version_info < (3, 10):
-    raise SystemExit("ERROR: Python 3.10 or newer is required.")
+if sys.version_info[:2] != (3, 12):
+    raise SystemExit(
+        "ERROR: the verified one-click environment requires Python 3.12. "
+        "Set PYTHON_BIN to a Python 3.12 executable. Use a separately managed "
+        "environment if you intentionally need a different Python version."
+    )
 print(f"Python: {sys.version.split()[0]}")
 PY
 
@@ -61,8 +67,15 @@ echo "Installing vLLM GPU stack: $VLLM_SPEC"
 "${UV_PIP[@]}" "$VLLM_SPEC" --torch-backend=auto
 
 if [ "$INSTALL_FLASH_ATTN" = "true" ]; then
-    echo "Installing flash-attn. This requires a CUDA toolkit compatible with the installed PyTorch build."
-    "${UV_PIP[@]}" flash-attn --no-build-isolation
+    command -v curl >/dev/null 2>&1 || fail "curl not found. Install it before downloading the flash-attn wheel."
+    mkdir -p "$FLASH_ATTN_WHEEL_DIR"
+    FLASH_ATTN_WHEEL="$FLASH_ATTN_WHEEL_DIR/${FLASH_ATTN_WHEEL_URL##*/}"
+    if [ ! -f "$FLASH_ATTN_WHEEL" ]; then
+        echo "Downloading prebuilt flash-attn wheel..."
+        curl -fL --retry 3 --continue-at - -o "$FLASH_ATTN_WHEEL" "$FLASH_ATTN_WHEEL_URL"
+    fi
+    echo "Installing prebuilt flash-attn wheel: $FLASH_ATTN_WHEEL"
+    "${UV_PIP[@]}" "$FLASH_ATTN_WHEEL" --no-deps
 else
     echo "Skipping flash-attn because INSTALL_FLASH_ATTN=$INSTALL_FLASH_ATTN"
 fi
@@ -73,6 +86,7 @@ echo "Installing DR-Venus RL dependencies..."
 
 "$PYTHON" - <<'PY'
 import importlib.util
+import flash_attn
 import torch
 import vllm
 
@@ -83,6 +97,7 @@ if missing:
 
 print(f"torch={torch.__version__}")
 print(f"vllm={vllm.__version__}")
+print(f"flash_attn={flash_attn.__version__}")
 print(f"torch.cuda.is_available={torch.cuda.is_available()}")
 print(f"torch.cuda.device_count={torch.cuda.device_count()}")
 if not torch.cuda.is_available():
