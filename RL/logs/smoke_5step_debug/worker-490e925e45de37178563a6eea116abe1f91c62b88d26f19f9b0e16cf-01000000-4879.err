@@ -1,0 +1,21 @@
+:job_id:01000000
+
+libgomp: Invalid value for environment variable OMP_NUM_THREADS
+:actor_name:WorkerDict
+`torch_dtype` is deprecated! Use `dtype` instead!
+Flash Attention 2 only supports torch.float16 and torch.bfloat16 dtypes, but the current dype in Qwen3ForCausalLM is torch.float32. You should run training or inference using Automatic Mixed-Precision via the `with torch.autocast(device_type='torch_device'):` decorator, or load the model with the `dtype` argument. Example: `model = AutoModel.from_pretrained("openai/whisper-tiny", attn_implementation="flash_attention_2", dtype=torch.float16)`
+Flash Attention 2 only supports torch.float16 and torch.bfloat16 dtypes, but the current dype in Qwen3Model is torch.float32. You should run training or inference using Automatic Mixed-Precision via the `with torch.autocast(device_type='torch_device'):` decorator, or load the model with the `dtype` argument. Example: `model = AutoModel.from_pretrained("openai/whisper-tiny", attn_implementation="flash_attention_2", dtype=torch.float16)`
+Loading checkpoint shards:   0%|                                                                                                                                                 | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|████████████████████████████████████████████████████████████████████▌                                                                    | 1/2 [00:02<00:02,  2.06s/it]Loading checkpoint shards: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:03<00:00,  1.71s/it]Loading checkpoint shards: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:03<00:00,  1.77s/it]
+/root/autodl-tmp/venvs/dr-venus/lib/python3.12/site-packages/torch/distributed/fsdp/_init_utils.py:444: UserWarning: FSDP is switching to use `NO_SHARD` instead of ShardingStrategy.FULL_SHARD since the world size is 1.
+  warnings.warn(
+Loading checkpoint shards:   0%|                                                                                                                                                 | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|████████████████████████████████████████████████████████████████████▌                                                                    | 1/2 [00:02<00:02,  2.01s/it]Loading checkpoint shards: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:03<00:00,  1.70s/it]Loading checkpoint shards: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2/2 [00:03<00:00,  1.74s/it]
+/root/autodl-tmp/venvs/dr-venus/lib/python3.12/site-packages/torch/distributed/fsdp/_init_utils.py:444: UserWarning: FSDP is switching to use `NO_SHARD` instead of ShardingStrategy.FULL_SHARD since the world size is 1.
+  warnings.warn(
+/root/DR-Venus-LocalSearch/RL/verl/utils/profiler/config.py:49: UserWarning: Torch profiler tool config is not fully supported now.
+  warnings.warn("Torch profiler tool config is not fully supported now.", stacklevel=1)
+/root/autodl-tmp/venvs/dr-venus/lib/python3.12/site-packages/torch/distributed/fsdp/fully_sharded_data_parallel.py:690: FutureWarning: FSDP.state_dict_type() and FSDP.set_state_dict_type() are being deprecated. Please use APIs, get_state_dict() and set_state_dict(), which can support different parallelisms, FSDP1, FSDP2, DDP. API doc: https://pytorch.org/docs/stable/distributed.checkpoint.html#torch.distributed.checkpoint.state_dict.get_state_dict .Tutorial: https://pytorch.org/tutorials/recipes/distributed_checkpoint_recipe.html .
+  warnings.warn(
+/root/autodl-tmp/venvs/dr-venus/lib/python3.12/site-packages/torch/distributed/fsdp/_state_dict_utils.py:773: UserWarning: When using ``NO_SHARD`` for ``ShardingStrategy``, full_state_dict willbe returned.
+  warnings.warn(
+/root/autodl-tmp/venvs/dr-venus/lib/python3.12/site-packages/torch/distributed/fsdp/_state_dict_utils.py:711: UserWarning: When using ``NO_SHARD`` for ``ShardingStrategy``, full_state_dict willbe returned.
+  warnings.warn(

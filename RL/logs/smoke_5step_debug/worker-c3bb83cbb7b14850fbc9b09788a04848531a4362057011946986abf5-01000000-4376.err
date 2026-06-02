@@ -1,0 +1,11 @@
+:job_id:01000000
+
+libgomp: Invalid value for environment variable OMP_NUM_THREADS
+:actor_name:TaskRunner
+/root/DR-Venus-LocalSearch/RL/verl/trainer/main_ppo.py:264: UserWarning: Disabled critic as algorithm.adv_estimator != gae. If it is not intended, please set critic.enable=True
+  use_critic=need_critic(config),
+/root/DR-Venus-LocalSearch/RL/verl/utils/profiler/config.py:49: UserWarning: Torch profiler tool config is not fully supported now.
+  warnings.warn("Torch profiler tool config is not fully supported now.", stacklevel=1)
+/root/DR-Venus-LocalSearch/RL/verl/trainer/ppo/ray_trainer.py:378: UserWarning: Disabled critic as algorithm.adv_estimator != gae. If it is not intended, please set critic.enable=True
+  self.use_critic = need_critic(self.config)
+Training Progress:   0%|                                                                                                                                                         | 0/5 [00:00<?, ?it/s]Training Progress:  20%|████████████████████████████▊                                                                                                                   | 1/5 [01:51<07:27, 112.00s/it]Training Progress:  40%|█████████████████████████████████████████████████████████▌                                                                                      | 2/5 [03:45<05:38, 112.71s/it]

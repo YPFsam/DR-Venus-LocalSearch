@@ -1,0 +1,38 @@
+:job_id:01000000
+
+libgomp: Invalid value for environment variable OMP_NUM_THREADS
+:actor_name:AgentLoopWorker
+[AgentLoopWorker pid=6406] stdout redirected to /root/autodl-tmp/output/dr-venus-smoke-5step/worker_stdout_logs/worker_6406.log
+[Worker pid=6406] Starting: 4 samples (cutoff=90%)
+[DRAgentLoop] init_class done: max_turns=5, max_len=16384, response_length=4096, codeact_disabled=True, tok_pool_size=16
+[Worker pid=6406] 0/4 done, 4 active (37s)
+  turns: [min_turns=0, max_turns=4, avg_turns=2.5] | gen: 6.5s/t (prefill=0.1s decode=6.4s queue=0.0s) max_prefill=0.1s(ctx=2K,delta=1K) max_decode=12.5s(342tok) | tool: 0.1s/t max=0.4s
+You're using a Qwen2TokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+[Worker pid=6406] Cutoff triggered: 4/4 done (90%), signalling 0 remaining samples to wrap up
+[Worker pid=6406] Done: 4/4 in 58.6s, avg_turns=5.8, max_turns=8, avg_per_sample=14.6s, cutoff=0 samples
+[Worker pid=6406] Starting: 4 samples (cutoff=90%)
+[Worker pid=6406] 0/4 done, 4 active (30s)
+  turns: [min_turns=0, max_turns=2, avg_turns=0.8] | gen: 15.0s/t (prefill=0.1s decode=14.9s queue=0.0s) max_prefill=0.1s(ctx=550,delta=550) max_decode=26.9s(730tok) | tool: 0.0s/t max=0.0s
+[Worker pid=6406] 0/4 done, 4 active (60s)
+  turns: [min_turns=4, max_turns=7, avg_turns=5.2] | gen: 10.5s/t (prefill=0.1s decode=10.4s queue=0.0s) max_prefill=0.1s(ctx=5K,delta=808) max_decode=49.3s(1Ktok) | tool: 0.0s/t max=0.0s
+[Worker pid=6406] 2/4 done, 2 active (90s)
+  turns: [min_turns=6, max_turns=8, avg_turns=7.0] | gen: 9.7s/t (prefill=0.1s decode=9.6s queue=0.0s) max_prefill=0.3s(ctx=5K,delta=-1239) max_decode=49.3s(1Ktok) | tool: 0.0s/t max=0.0s
+[Worker pid=6406] Cutoff triggered: 4/4 done (90%), signalling 0 remaining samples to wrap up
+[Worker pid=6406] Done: 4/4 in 91.5s, avg_turns=7.2, max_turns=9, avg_per_sample=22.9s, cutoff=0 samples
+[Worker pid=6406] Starting: 4 samples (cutoff=90%)
+[Worker pid=6406] 0/4 done, 4 active (30s)
+  turns: [min_turns=1, max_turns=1, avg_turns=1.0] | gen: 21.5s/t (prefill=0.1s decode=21.4s queue=0.0s) max_prefill=0.1s(ctx=601,delta=601) max_decode=28.4s(775tok) | tool: 0.0s/t max=0.0s
+[Worker pid=6406] 0/4 done, 4 active (60s)
+  turns: [min_turns=2, max_turns=4, avg_turns=2.5] | gen: 9.8s/t (prefill=0.1s decode=9.7s queue=0.0s) max_prefill=0.1s(ctx=601,delta=601) max_decode=28.4s(775tok) | tool: 10.3s/t max=30.1s
+[Worker pid=6406] 1/4 done, 3 active (90s)
+  turns: [min_turns=2, max_turns=3, avg_turns=2.7] | gen: 10.2s/t (prefill=0.1s decode=10.1s queue=0.0s) max_prefill=0.2s(ctx=3K,delta=-738) max_decode=28.4s(775tok) | tool: 13.9s/t max=30.1s
+[Worker pid=6406] 1/4 done, 3 active (120s)
+  turns: [min_turns=3, max_turns=6, avg_turns=4.3] | gen: 9.4s/t (prefill=0.1s decode=9.3s queue=0.0s) max_prefill=0.2s(ctx=3K,delta=-738) max_decode=28.4s(775tok) | tool: 12.8s/t max=30.1s
+[Worker pid=6406] 2/4 done, 2 active (150s)
+  turns: [min_turns=4, max_turns=5, avg_turns=4.5] | gen: 9.4s/t (prefill=0.1s decode=9.3s queue=0.0s) max_prefill=0.3s(ctx=6K,delta=-943) max_decode=28.4s(775tok) | tool: 14.1s/t max=30.1s
+[Worker pid=6406] 3/4 done, 1 active (180s)
+  turns: [min_turns=7, max_turns=7, avg_turns=7.0] | gen: 8.6s/t (prefill=0.1s decode=8.5s queue=0.0s) max_prefill=0.3s(ctx=6K,delta=-943) max_decode=28.4s(775tok) | tool: 14.5s/t max=30.1s
+[Worker pid=6406] 3/4 done, 1 active (210s)
+  turns: [min_turns=7, max_turns=7, avg_turns=7.0] | gen: 8.6s/t (prefill=0.1s decode=8.5s queue=0.0s) max_prefill=0.3s(ctx=6K,delta=-943) max_decode=28.4s(775tok) | tool: 15.7s/t max=30.1s
+[Worker pid=6406] Cutoff triggered: 4/4 done (90%), signalling 0 remaining samples to wrap up
+[Worker pid=6406] Done: 4/4 in 239.3s, avg_turns=6.5, max_turns=8, avg_per_sample=59.8s, cutoff=0 samples

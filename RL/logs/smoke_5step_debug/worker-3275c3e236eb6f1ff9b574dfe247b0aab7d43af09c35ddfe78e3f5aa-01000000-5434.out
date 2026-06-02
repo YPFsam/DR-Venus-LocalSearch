@@ -1,0 +1,9 @@
+:job_id:01000000
+:actor_name:AsyncvLLMServer
+FastAPI listen on 172.17.0.6:37353
+override_generation_config: {'n': 1, 'logprobs': 0, 'repetition_penalty': 1.0, 'max_new_tokens': 4096, 'temperature': 1.0, 'top_k': -1, 'top_p': 0.95, 'ignore_eos': False}
+WARNING 06-02 18:16:03 [arg_utils.py:1663] Detected VLLM_USE_V1=1 with Engine in background thread. Usage should be considered experimental. Please report any issues on Github.
+instance_id: a77b75f3-9f25-4a61-b65c-42fb7e51d8c4:RYTAEg:1:0 initializes with external actors: ['RYTAEgWorkerDict_0:0']
+VERL_VLLM_ZMQ_ADDRESSES: ['ipc:///tmp/verl_vllm_zmq_4879_root.ipc']
+WARNING 06-02 18:16:03 [utils.py:2382] We must use the `spawn` multiprocessing start method. Overriding VLLM_WORKER_MULTIPROC_METHOD to 'spawn'. See https://docs.vllm.ai/en/latest/getting_started/troubleshooting.html#python-multiprocessing for more information. Reason: In a Ray actor and can only be spawned
+WARNING 06-02 18:16:15 [config.py:1239] Default sampling parameters have been overridden by the model's Hugging Face generation config recommended from the model creator. If this is not intended, please relaunch vLLM instance with `--generation-config vllm`.

@@ -1,0 +1,674 @@
+:job_id:01000000
+:actor_name:TaskRunner
+TaskRunner hostname: autodl-container-5e91gu6g6e-ebe5b53d, PID: 4376
+{'actor_rollout_ref': {'actor': {'_target_': 'verl.workers.config.FSDPActorConfig',
+                                 'checkpoint': {'_target_': 'verl.trainer.config.CheckpointConfig',
+                                                'async_save': False,
+                                                'load_contents': ['model',
+                                                                  'optimizer',
+                                                                  'extra'],
+                                                'save_contents': ['model',
+                                                                  'optimizer',
+                                                                  'extra']},
+                                 'clip_ratio': 0.2,
+                                 'clip_ratio_c': 3.0,
+                                 'clip_ratio_high': 0.2,
+                                 'clip_ratio_low': 0.2,
+                                 'entropy_checkpointing': False,
+                                 'entropy_coeff': 0,
+                                 'entropy_from_logits_with_chunking': False,
+                                 'freeze_vision_tower': False,
+                                 'fsdp_config': {'_target_': 'verl.workers.config.FSDPEngineConfig',
+                                                 'entropy_checkpointing': False,
+                                                 'entropy_from_logits_with_chunking': False,
+                                                 'forward_only': False,
+                                                 'forward_prefetch': False,
+                                                 'fsdp_size': -1,
+                                                 'model_dtype': 'fp32',
+                                                 'offload_policy': False,
+                                                 'optimizer_offload': True,
+                                                 'param_offload': True,
+                                                 'reshard_after_forward': True,
+                                                 'strategy': 'fsdp',
+                                                 'ulysses_sequence_parallel_size': 1,
+                                                 'use_orig_params': False,
+                                                 'use_torch_compile': True,
+                                                 'wrap_policy': {'min_num_params': 0}},
+                                 'grad_clip': 1.0,
+                                 'kl_loss_coef': 0.001,
+                                 'kl_loss_type': 'low_var_kl',
+                                 'loss_agg_mode': 'token-mean',
+                                 'mask_tool_response': True,
+                                 'optim': {'_target_': 'verl.workers.config.FSDPOptimizerConfig',
+                                           'betas': [0.9, 0.999],
+                                           'clip_grad': 1.0,
+                                           'lr': 1e-06,
+                                           'lr_warmup_steps': -1,
+                                           'lr_warmup_steps_ratio': 0.0,
+                                           'min_lr_ratio': 0.0,
+                                           'num_cycles': 0.5,
+                                           'total_training_steps': -1,
+                                           'warmup_style': 'constant',
+                                           'weight_decay': 0.01},
+                                 'policy_loss': {'_target_': 'verl.workers.config.PolicyLossConfig',
+                                                 'clip_cov_lb': 1.0,
+                                                 'clip_cov_ratio': 0.0002,
+                                                 'clip_cov_ub': 5.0,
+                                                 'kl_cov_ratio': 0.0002,
+                                                 'loss_mode': 'vanilla',
+                                                 'ppo_kl_coef': 0.1},
+                                 'ppo_epochs': 1,
+                                 'ppo_max_token_len_per_gpu': 17896,
+                                 'ppo_micro_batch_size': None,
+                                 'ppo_micro_batch_size_per_gpu': 1,
+                                 'ppo_mini_batch_size': 4,
+                                 'profiler': {'_target_': 'verl.utils.profiler.ProfilerConfig',
+                                              'all_ranks': False,
+                                              'enable': False,
+                                              'ranks': [],
+                                              'save_path': 'outputs/profile',
+                                              'tool': None,
+                                              'tool_config': {'npu': {'_target_': 'verl.utils.profiler.config.NPUToolConfig',
+                                                                      'analysis': True,
+                                                                      'contents': [],
+                                                                      'discrete': False,
+                                                                      'level': 'level1'},
+                                                              'nsys': {'_target_': 'verl.utils.profiler.config.NsightToolConfig',
+                                                                       'discrete': False},
+                                                              'torch': {'_target_': 'verl.utils.profiler.config.TorchProfilerToolConfig',
+                                                                        'step_end': None,
+                                                                        'step_start': 0},
+                                                              'torch_memory': {'_target_': 'verl.utils.profiler.config.TorchMemoryToolConfig',
+                                                                               'stack_depth': 32,
+                                                                               'trace_alloc_max_entries': 100000}}},
+                                 'shuffle': False,
+                                 'strategy': 'fsdp',
+                                 'tis_imp_ratio_cap': -1,
+                                 'ulysses_sequence_parallel_size': 1,
+                                 'use_dynamic_bsz': True,
+                                 'use_fused_kernels': False,
+                                 'use_kl_loss': True,
+                                 'use_remove_padding': True,
+                                 'use_torch_compile': False},
+                       'hybrid_engine': True,
+                       'model': {'_target_': 'verl.workers.config.HFModelConfig',
+                                 'custom_chat_template': None,
+                                 'enable_activation_offload': True,
+                                 'enable_gradient_checkpointing': True,
+                                 'exclude_modules': None,
+                                 'external_lib': None,
+                                 'fused_kernel_options': {'impl_backend': 'torch'},
+                                 'hf_config_path': None,
+                                 'lora_alpha': 16,
+                                 'lora_rank': 0,
+                                 'override_config': {},
+                                 'path': '/root/autodl-tmp/models/DR-Venus-4B-SFT',
+                                 'target_modules': 'all-linear',
+                                 'tokenizer_path': None,
+                                 'trust_remote_code': False,
+                                 'use_fused_kernels': False,
+                                 'use_liger': False,
+                                 'use_remove_padding': True,
+                                 'use_shm': False},
+                       'nccl_timeout': 7200,
+                       'ref': {'entropy_checkpointing': False,
+                               'entropy_from_logits_with_chunking': False,
+                               'fsdp_config': {'_target_': 'verl.workers.config.FSDPEngineConfig',
+                                               'entropy_checkpointing': False,
+                                               'entropy_from_logits_with_chunking': False,
+                                               'forward_only': False,
+                                               'forward_prefetch': False,
+                                               'fsdp_size': -1,
+                                               'model_dtype': 'fp32',
+                                               'offload_policy': False,
+                                               'optimizer_offload': False,
+                                               'param_offload': True,
+                                               'reshard_after_forward': True,
+                                               'strategy': 'fsdp',
+                                               'ulysses_sequence_parallel_size': 1,
+                                               'use_orig_params': False,
+                                               'use_torch_compile': True,
+                                               'wrap_policy': {'min_num_params': 0}},
+                               'log_prob_max_token_len_per_gpu': 17896,
+                               'log_prob_micro_batch_size': None,
+                               'log_prob_micro_batch_size_per_gpu': 1,
+                               'log_prob_use_dynamic_bsz': True,
+                               'model': None,
+                               'profiler': {'_target_': 'verl.utils.profiler.ProfilerConfig',
+                                            'all_ranks': False,
+                                            'enable': False,
+                                            'ranks': [],
+                                            'save_path': 'outputs/profile',
+                                            'tool': None,
+                                            'tool_config': {'npu': {'_target_': 'verl.utils.profiler.config.NPUToolConfig',
+                                                                    'analysis': True,
+                                                                    'contents': [],
+                                                                    'discrete': False,
+                                                                    'level': 'level1'},
+                                                            'nsys': {'_target_': 'verl.utils.profiler.config.NsightToolConfig',
+                                                                     'discrete': False},
+                                                            'torch': {'_target_': 'verl.utils.profiler.config.TorchProfilerToolConfig',
+                                                                      'step_end': None,
+                                                                      'step_start': 0},
+                                                            'torch_memory': {'_target_': 'verl.utils.profiler.config.TorchMemoryToolConfig',
+                                                                             'stack_depth': 32,
+                                                                             'trace_alloc_max_entries': 100000}}},
+                               'strategy': 'fsdp',
+                               'ulysses_sequence_parallel_size': 1,
+                               'use_torch_compile': False},
+                       'rollout': {'_target_': 'verl.workers.config.RolloutConfig',
+                                   'agent': {'_target_': 'verl.workers.config.AgentLoopConfig',
+                                             'agent_loop_config_path': 'configs/dr_agent_loop.yaml',
+                                             'completion_cutoff': 0.9,
+                                             'custom_async_server': {'_target_': 'verl.workers.config.CustomAsyncServerConfig',
+                                                                     'name': None,
+                                                                     'path': None},
+                                             'num_workers': 1},
+                                   'calculate_log_probs': False,
+                                   'cudagraph_capture_sizes': None,
+                                   'disable_log_stats': False,
+                                   'do_sample': True,
+                                   'dtype': 'bfloat16',
+                                   'enable_chunked_prefill': True,
+                                   'enable_prefix_caching': True,
+                                   'enforce_eager': False,
+                                   'engine_kwargs': {'sglang': {}, 'vllm': {}},
+                                   'free_cache_engine': True,
+                                   'gpu_memory_utilization': 0.75,
+                                   'ignore_eos': False,
+                                   'layered_summon': False,
+                                   'load_format': 'dummy_dtensor',
+                                   'log_prob_max_token_len_per_gpu': 17896,
+                                   'log_prob_micro_batch_size': None,
+                                   'log_prob_micro_batch_size_per_gpu': 1,
+                                   'log_prob_use_dynamic_bsz': True,
+                                   'max_model_len': 16384,
+                                   'max_num_batched_tokens': 8192,
+                                   'max_num_seqs': 1024,
+                                   'mode': 'async',
+                                   'multi_stage_wake_up': False,
+                                   'multi_turn': {'_target_': 'verl.workers.config.MultiTurnConfig',
+                                                  'enable': False,
+                                                  'format': 'hermes',
+                                                  'interaction_config_path': None,
+                                                  'max_assistant_turns': None,
+                                                  'max_parallel_calls': 1,
+                                                  'max_tool_response_length': 256,
+                                                  'max_user_turns': None,
+                                                  'tokenization_sanity_check_mode': 'strict',
+                                                  'tool_config_path': None,
+                                                  'tool_response_truncate_side': 'middle',
+                                                  'use_inference_chat_template': False},
+                                   'n': 1,
+                                   'name': 'vllm',
+                                   'over_sample_rate': 0,
+                                   'profiler': {'_target_': 'verl.utils.profiler.ProfilerConfig',
+                                                'all_ranks': False,
+                                                'enable': False,
+                                                'ranks': [],
+                                                'save_path': 'outputs/profile',
+                                                'tool': None,
+                                                'tool_config': {'npu': {'_target_': 'verl.utils.profiler.config.NPUToolConfig',
+                                                                        'analysis': True,
+                                                                        'contents': [],
+                                                                        'discrete': False,
+                                                                        'level': 'level1'},
+                                                                'nsys': {'_target_': 'verl.utils.profiler.config.NsightToolConfig',
+                                                                         'discrete': False},
+                                                                'torch': {'_target_': 'verl.utils.profiler.config.TorchProfilerToolConfig',
+                                                                          'step_end': None,
+                                                                          'step_start': 0},
+                                                                'torch_memory': {'_target_': 'verl.utils.profiler.config.TorchMemoryToolConfig',
+                                                                                 'stack_depth': 32,
+                                                                                 'trace_alloc_max_entries': 100000}}},
+                                   'prompt_length': 512,
+                                   'repetition_penalty': 1.0,
+                                   'response_length': 4096,
+                                   'skip_dump_dir': '/tmp/rollout_dump',
+                                   'skip_rollout': False,
+                                   'skip_tokenizer_init': False,
+                                   'temperature': 1.0,
+                                   'tensor_model_parallel_size': 1,
+                                   'top_k': -1,
+                                   'top_p': 0.95,
+                                   'trace': {'_target_': 'verl.workers.config.TraceConfig',
+                                             'backend': None,
+                                             'token2text': False},
+                                   'update_weights_bucket_megabytes': 512,
+                                   'val_kwargs': {'_target_': 'verl.workers.config.SamplingConfig',
+                                                  'do_sample': False,
+                                                  'n': 1,
+                                                  'repetition_penalty': 1.05,
+                                                  'temperature': 0,
+                                                  'top_k': -1,
+                                                  'top_p': 1.0}}},
+ 'agent_grpo': {'n': 2},
+ 'algorithm': {'_target_': 'verl.trainer.config.AlgoConfig',
+               'adv_estimator': 'grpo_info_gain',
+               'curriculum_f1_final': 1.0,
+               'curriculum_f1_init': 0.5,
+               'curriculum_ig_final': 0.5,
+               'curriculum_ig_init': 1.0,
+               'format_penalty_scale': 1.0,
+               'gamma': 0.95,
+               'ig_compute_freq': 1,
+               'ig_tool_filter': 'visit',
+               'ig_weight': 1.0,
+               'info_gain_norm_mode': 'scaled_separate',
+               'info_gain_type': 'log_prob_diff',
+               'kl_ctrl': {'_target_': 'verl.trainer.config.KLControlConfig',
+                           'horizon': 10000,
+                           'kl_coef': 0.001,
+                           'target_kl': 0.1,
+                           'type': 'fixed'},
+               'kl_penalty': 'kl',
+               'lam': 1.0,
+               'norm_adv_by_std_in_grpo': True,
+               'pf_ppo': {'reweight_method': 'pow', 'weight_pow': 2.0},
+               'use_curriculum': False,
+               'use_format_penalty': True,
+               'use_info_gain': True,
+               'use_kl_in_reward': False,
+               'use_kv_cache_ig': False,
+               'use_pf_ppo': False,
+               'use_vectorized_gt_logprob': False},
+ 'codeact_env_disabled': True,
+ 'critic': {'_target_': 'verl.workers.config.FSDPCriticConfig',
+            'checkpoint': {'_target_': 'verl.trainer.config.CheckpointConfig',
+                           'async_save': False,
+                           'load_contents': ['model', 'optimizer', 'extra'],
+                           'save_contents': ['model', 'optimizer', 'extra']},
+            'cliprange_value': 0.5,
+            'enable': None,
+            'forward_max_token_len_per_gpu': 32768,
+            'forward_micro_batch_size': None,
+            'forward_micro_batch_size_per_gpu': 1,
+            'grad_clip': 1.0,
+            'loss_agg_mode': 'token-mean',
+            'model': {'_target_': 'verl.workers.config.FSDPCriticModelCfg',
+                      'enable_activation_offload': False,
+                      'enable_gradient_checkpointing': True,
+                      'external_lib': None,
+                      'fsdp_config': {'_target_': 'verl.workers.config.FSDPEngineConfig',
+                                      'entropy_checkpointing': False,
+                                      'entropy_from_logits_with_chunking': False,
+                                      'forward_only': False,
+                                      'forward_prefetch': False,
+                                      'fsdp_size': -1,
+                                      'model_dtype': 'fp32',
+                                      'offload_policy': False,
+                                      'optimizer_offload': False,
+                                      'param_offload': False,
+                                      'reshard_after_forward': True,
+                                      'strategy': 'fsdp',
+                                      'ulysses_sequence_parallel_size': 1,
+                                      'use_orig_params': False,
+                                      'use_torch_compile': True,
+                                      'wrap_policy': {'min_num_params': 0}},
+                      'lora_alpha': 16,
+                      'lora_rank': 0,
+                      'override_config': {},
+                      'path': '/root/autodl-tmp/models/DR-Venus-4B-SFT',
+                      'target_modules': 'all-linear',
+                      'tokenizer_path': '/root/autodl-tmp/models/DR-Venus-4B-SFT',
+                      'trust_remote_code': False,
+                      'use_remove_padding': False,
+                      'use_shm': False},
+            'optim': {'_target_': 'verl.workers.config.FSDPOptimizerConfig',
+                      'betas': [0.9, 0.999],
+                      'clip_grad': 1.0,
+                      'lr': 1e-05,
+                      'lr_warmup_steps': -1,
+                      'lr_warmup_steps_ratio': 0.0,
+                      'min_lr_ratio': 0.0,
+                      'num_cycles': 0.5,
+                      'total_training_steps': -1,
+                      'warmup_style': 'constant',
+                      'weight_decay': 0.01},
+            'ppo_epochs': 1,
+            'ppo_max_token_len_per_gpu': 32768,
+            'ppo_micro_batch_size': None,
+            'ppo_micro_batch_size_per_gpu': 1,
+            'ppo_mini_batch_size': 4,
+            'profiler': {'_target_': 'verl.utils.profiler.ProfilerConfig',
+                         'all_ranks': False,
+                         'enable': False,
+                         'ranks': [],
+                         'save_path': 'outputs/profile',
+                         'tool': None,
+                         'tool_config': {'npu': {'_target_': 'verl.utils.profiler.config.NPUToolConfig',
+                                                 'analysis': True,
+                                                 'contents': [],
+                                                 'discrete': False,
+                                                 'level': 'level1'},
+                                         'nsys': {'_target_': 'verl.utils.profiler.config.NsightToolConfig',
+                                                  'discrete': False},
+                                         'torch': {'_target_': 'verl.utils.profiler.config.TorchProfilerToolConfig',
+                                                   'step_end': None,
+                                                   'step_start': 0},
+                                         'torch_memory': {'_target_': 'verl.utils.profiler.config.TorchMemoryToolConfig',
+                                                          'stack_depth': 32,
+                                                          'trace_alloc_max_entries': 100000}}},
+            'rollout_n': 1,
+            'shuffle': False,
+            'strategy': 'fsdp',
+            'ulysses_sequence_parallel_size': 1,
+            'use_dynamic_bsz': True},
+ 'custom_reward_function': {'name': 'compute_score', 'path': None},
+ 'data': {'apply_chat_template_kwargs': {},
+          'custom_cls': {'name': None, 'path': None},
+          'datagen': {'name': None, 'path': None},
+          'dataloader_num_workers': 8,
+          'filter_overlong_prompts': False,
+          'filter_overlong_prompts_workers': 1,
+          'image_key': 'images',
+          'max_model_len': 16384,
+          'max_prompt_length': 8192,
+          'max_response_length': 4096,
+          'n_gpus_per_node': 8,
+          'prompt_key': 'prompt',
+          'return_full_prompt': False,
+          'return_multi_modal_inputs': True,
+          'return_raw_chat': True,
+          'return_raw_input_ids': False,
+          'reward_fn_key': 'data_source',
+          'sampler': {'class_name': None, 'class_path': None},
+          'shuffle': True,
+          'tokenizer': None,
+          'train_batch_size': 2,
+          'train_files': 'data/redsearcher_rl_1k.parquet',
+          'truncation': 'error',
+          'trust_remote_code': False,
+          'use_shm': False,
+          'val_batch_size': None,
+          'val_files': 'data/test.parquet',
+          'validation_shuffle': False,
+          'video_key': 'videos'},
+ 'do_search': True,
+ 'global_profiler': {'_target_': 'verl.utils.profiler.ProfilerConfig',
+                     'global_tool_config': {'nsys': {'_target_': 'verl.utils.profiler.config.NsightToolConfig',
+                                                     'controller_nsight_options': {'cuda-graph-trace': 'graph',
+                                                                                   'cuda-memory-usage': 'true',
+                                                                                   'trace': 'cuda,nvtx,cublas,ucx'},
+                                                     'discrete': False,
+                                                     'worker_nsight_options': {'capture-range': 'cudaProfilerApi',
+                                                                               'capture-range-end': None,
+                                                                               'cuda-graph-trace': 'graph',
+                                                                               'cuda-memory-usage': 'true',
+                                                                               'kill': 'none',
+                                                                               'trace': 'cuda,nvtx,cublas,ucx'}},
+                                            'torch_memory': {'context': 'all',
+                                                             'kw_args': {},
+                                                             'stack_depth': 32,
+                                                             'stacks': 'all',
+                                                             'trace_alloc_max_entries': 100000}},
+                     'profile_continuous_steps': False,
+                     'save_path': 'outputs/profile',
+                     'steps': None,
+                     'tool': None},
+ 'max_turns': 5,
+ 'ray_kwargs': {'ray_init': {'num_cpus': None}, 'timeline_json_file': None},
+ 'reward_model': {'enable': False,
+                  'enable_resource_pool': False,
+                  'forward_max_token_len_per_gpu': 32768,
+                  'launch_reward_fn_async': False,
+                  'max_length': None,
+                  'micro_batch_size': None,
+                  'micro_batch_size_per_gpu': None,
+                  'model': {'external_lib': None,
+                            'fsdp_config': {'_target_': 'verl.workers.config.FSDPEngineConfig',
+                                            'forward_prefetch': False,
+                                            'fsdp_size': -1,
+                                            'param_offload': False,
+                                            'reshard_after_forward': True,
+                                            'wrap_policy': {'min_num_params': 0}},
+                            'input_tokenizer': '/root/autodl-tmp/models/DR-Venus-4B-SFT',
+                            'path': '~/models/FsfairX-LLaMA3-RM-v0.1',
+                            'trust_remote_code': False,
+                            'use_fused_kernels': False,
+                            'use_remove_padding': False,
+                            'use_shm': False},
+                  'n_gpus_per_node': 0,
+                  'nnodes': 0,
+                  'profiler': {'_target_': 'verl.utils.profiler.ProfilerConfig',
+                               'all_ranks': False,
+                               'enable': False,
+                               'ranks': [],
+                               'save_path': 'outputs/profile',
+                               'tool': None,
+                               'tool_config': {'npu': {'_target_': 'verl.utils.profiler.config.NPUToolConfig',
+                                                       'analysis': True,
+                                                       'contents': [],
+                                                       'discrete': False,
+                                                       'level': 'level1'},
+                                               'nsys': {'_target_': 'verl.utils.profiler.config.NsightToolConfig',
+                                                        'discrete': False},
+                                               'torch': {'_target_': 'verl.utils.profiler.config.TorchProfilerToolConfig',
+                                                         'step_end': None,
+                                                         'step_start': 0},
+                                               'torch_memory': {'_target_': 'verl.utils.profiler.config.TorchMemoryToolConfig',
+                                                                'stack_depth': 32,
+                                                                'trace_alloc_max_entries': 100000}}},
+                  'reward_kwargs': {'deepthink_disabled': True},
+                  'reward_manager': 'naive_batch',
+                  'sandbox_fusion': {'max_concurrent': 64,
+                                     'memory_limit_mb': 1024,
+                                     'url': None},
+                  'strategy': 'fsdp',
+                  'train_reward_type': 'f1',
+                  'ulysses_sequence_parallel_size': 1,
+                  'use_dynamic_bsz': True,
+                  'valid_reward_type': 'f1_em_noformatf1'},
+ 'search_engine': 'online_search',
+ 'tool_timeout': 150,
+ 'trace_max_samples': 8,
+ 'trace_save_interval': 10,
+ 'trainer': {'balance_batch': True,
+             'critic_warmup': 0,
+             'default_hdfs_dir': None,
+             'default_local_dir': '/root/autodl-tmp/output/dr-venus-smoke-5step',
+             'del_local_ckpt_after_load': False,
+             'device': 'cuda',
+             'esi_redundant_time': 0,
+             'experiment_name': 'dr-venus-4b-local-search-1gpu',
+             'log_val_generations': 0,
+             'logger': ['console', 'tensorboard'],
+             'max_actor_ckpt_to_keep': 2,
+             'max_critic_ckpt_to_keep': 2,
+             'max_local_ckpt_to_keep': 2,
+             'n_gpus_per_node': 1,
+             'nnodes': 1,
+             'project_name': 'dr-venus-local-rl',
+             'ray_wait_register_center_timeout': 300,
+             'resume_dataloader_steps': 0,
+             'resume_from_path': None,
+             'resume_mode': 'auto',
+             'rollout_data_dir': None,
+             'save_freq': 5,
+             'test_freq': -1,
+             'total_epochs': 1,
+             'total_training_steps': 5,
+             'use_legacy_worker_impl': 'auto',
+             'val_before_train': False,
+             'val_only': False,
+             'validation_data_dir': '/root/autodl-tmp/eval_log'}}
+[validate_config] All configuration checks passed successfully!
+Using dataset class: RLHFDataset
+dataset len: 1000
+Using dataset class: RLHFDataset
+dataset len: 3197
+Size of train dataloader: 500, Size of val dataloader: 1
+Total training steps: 5
+colocated worker base class <class 'verl.single_controller.base.worker.Worker'>
+bind role actor_rollout method chat_completion to class <class 'verl.single_controller.ray.base.create_colocated_worker_cls.<locals>.WorkerDict'>
+bind role actor_rollout method generate to class <class 'verl.single_controller.ray.base.create_colocated_worker_cls.<locals>.WorkerDict'>
+bind role actor_rollout method get_zeromq_address to class <class 'verl.single_controller.ray.base.create_colocated_worker_cls.<locals>.WorkerDict'>
+bind role actor_rollout method sleep to class <class 'verl.single_controller.ray.base.create_colocated_worker_cls.<locals>.WorkerDict'>
+bind role actor_rollout method wake_up to class <class 'verl.single_controller.ray.base.create_colocated_worker_cls.<locals>.WorkerDict'>
+Saving tensorboard log to tensorboard_log/dr-venus-local-rl/dr-venus-4b-local-search-1gpu.
+Checkpoint tracker file does not exist: /root/autodl-tmp/output/dr-venus-smoke-5step/latest_checkpointed_iteration.txt
+Training from scratch
+[0] Process start_profile start
+[0] Process start_profile elapsed 0.00018544495105743408 
+[0] Process step start
+[0] Process gen start
+
+========================================================================
+  [AsyncRollout] 18:16:17 Starting: 4 samples → 1 workers (4 samples/worker)
+========================================================================
+
+========================================================================
+  [AsyncRollout] 18:17:22 Complete: 4 samples in 65.3s
+  gen=38.3s(avg) 50.2s(max) | prefill=0.7s(avg) decode=37.6s(avg)
+  max_prefill=0.3s(ctx=6K,delta=-1K,18067tok/s) max_decode=33.9s(922tok,0.04s/tok)
+  tool=0.3s(avg) 0.5s(max) | timeout=0/19(0.0%)
+  slowest: gen=50.2s, tool=0.2s, prompt=590tok, response=5295tok
+========================================================================
+[0] Process gen elapsed 65.32776434533298 
+[0] Process ig_kv_cache start
+[IGPO-Async] ig_tool_filter={'visit'}: kept 4 turns, skipped 19 non-matching turns
+[IGPO] Using agent's input_ids as trajectory (zero BPE drift)
+
+================================================================
+  [IGPO-VERIFY-PRE] Round #1: PASS
+  samples=4, turns=1, async_n=2
+  All checks passed
+================================================================
+[KV-CACHE IG] Starting: 1 turns, 4 samples
+[KV-CACHE IG] COMPLETED: 1 turns, 0 info_gains, 4 samples processed
+[IGPO-Async] KV-Cache IG completed: 1 computed turns, freq=1, non-empty: 4/4, boundary_parity: ZERO_DRIFT, format_penalty: 4/23 (17.4%) (answer_penalized=4)
+[0] Process ig_kv_cache elapsed 3.5180840268731117 
+[0] Process reward start
+[IGPO-DIAG] Pre-compute_reward: ig_rw_len=4 non_empty=4 type(reward_fn)=NaiveBatchRewardManager train_reward_type=f1 has_rm_scores=True
+[IGPO-Phase1] Skipped Phase-1 scoring: rm_scores present (bsz=4), proceeding to Phase-2 IG overlay
+[IGPO-Phase2] IG post-processing: processed=4 skipped=0 total_nz_placed=4 reward_tensor_id=140004445481440 detail=[sample=0 ig_len=7 orig_len=5295 scores_len=5295 nz_positions=[5294] nz_before=0 nz_after=1 has_original_token_ids=True reward_tensor_shape=[4, 5295]]
+[IGPO-DIAG] Post-compute_reward: reward_tensor_id=140004445481440 shape=[4, 5295] non_zero=4 ig_status={'requested': True, 'applied': True}
+[0] Process reward elapsed 0.023046888411045074 
+[0] Process old_log_prob start
+[0] Process old_log_prob elapsed 2.6199100594967604 
+[0] Process ref start
+[0] Process ref elapsed 21.338171061128378 
+[0] Process adv start
+[IGPO-DIAG] Pre-verify: token_level_rewards_id=140004445481440 non_zero=4 shape=[4, 5295] same_as_reward_tensor=True
+
+================================================================
+  [IGPO-VERIFY-POST] Round #1: PASS
+  bsz=4, ig_pos=0, ig_visible=0, ig_masked=0
+  WARN:  [G] No IG rewards in token_level_rewards for any sample (bsz=4). All single-turn or empty IG?
+================================================================
+[IGPO-CRITICAL] ig_mask is entirely empty — grpo_info_gain has DEGRADED to standard GRPO for this batch (bsz=4, f1_positions=4, nonzero_non_f1_rewards=0)
+[0] Process adv elapsed 0.06697178445756435 
+[0] Process update_actor start
+[0] Process update_actor elapsed 18.926233280450106 
+[0] Process step elapsed 111.82599039375782 
+[0] Process stop_profile start
+[0] Process stop_profile elapsed 0.0001777075231075287 
+step:1 - global_seqlen/min:15940 - global_seqlen/max:15940 - global_seqlen/minmax_diff:0 - global_seqlen/balanced_min:15940 - global_seqlen/balanced_max:15940 - global_seqlen/mean:15940.0 - actor/entropy_loss:1.1630886793136597 - outcome_score/mean:0.0 - outcome_score/max:0.0 - outcome_score/min:0.0 - igpo/reward_ig_requested:1 - igpo/reward_ig_applied:1 - igpo/ig_active_samples:0 - igpo/ig_active_ratio:0.0 - igpo/ig_total_positions:0 - igpo/f1_total_positions:4 - igpo/outcome_reward_mean:-1.0 - igpo/ig_scale:0.2999997138977051 - igpo/outcome_norm_abs_mean:0.30000001192092896 - igpo/ig_norm_abs_mean:1.0 - igpo/all_same_outcome_ratio:0.0 - igpo/num_groups:2 - igpo/effective_gamma_mean:0.95 - igpo/effective_gamma_min:0.95 - igpo/effective_gamma_max:0.95 - igpo/num_turns_mean:1.0 - igpo/num_turns_min:1 - igpo/num_turns_max:1 - igpo/adv_abs_mean:0.0 - igpo/adv_std:0.0 - igpo/adv_positive_ratio:0.0 - igpo/adv_f1_positions_mean:0.0 - actor/kl_loss:0.0 - actor/kl_coef:0.001 - actor/ratio_mean:1.0 - actor/ratio_std:0.0 - actor/ratio_max:1.0 - actor/pg_loss:0.0 - actor/pg_clipfrac:0.0 - actor/ppo_kl:0.0 - actor/pg_clipfrac_lower:0.0 - actor/grad_norm:0.0 - perf/mfu/actor:0.3104948062301758 - perf/max_memory_allocated_gb:97.96550130844116 - perf/max_memory_reserved_gb:101.21484375 - perf/cpu_memory_used_gb:124.33744430541992 - actor/lr:1e-06 - train/turns/mean:5.75 - train/turns/median:6.0 - train/acc:0.0 - training/global_step:1 - training/epoch:0 - critic/score/mean:-1.0 - critic/score/max:-1.0 - critic/score/min:-1.0 - critic/rewards/mean:-1.0 - critic/rewards/max:-1.0 - critic/rewards/min:-1.0 - critic/advantages/mean:0.0 - critic/advantages/max:0.0 - critic/advantages/min:0.0 - critic/returns/mean:0.0 - critic/returns/max:0.0 - critic/returns/min:0.0 - response_length/mean:3412.0 - response_length/max:5295.0 - response_length/min:1354.0 - response_length/clip_ratio:0.25 - response_length_non_aborted/mean:3412.0 - response_length_non_aborted/max:5295.0 - response_length_non_aborted/min:1354.0 - response_length_non_aborted/clip_ratio:0.25 - response/aborted_ratio:0.0 - prompt_length/mean:573.0 - prompt_length/max:590.0 - prompt_length/min:556.0 - prompt_length/clip_ratio:0.5 - num_turns/min:3 - num_turns/max:8 - num_turns/mean:5.75 - timing_s/start_profile:0.00018544495105743408 - timing_s/gen:65.32776434533298 - timing_s/ig_kv_cache:3.5180840268731117 - timing_s/reward:0.023046888411045074 - timing_s/old_log_prob:2.6199100594967604 - timing_s/ref:21.338171061128378 - timing_s/adv:0.06697178445756435 - timing_s/update_actor:18.926233280450106 - timing_s/step:111.82599039375782 - timing_s/stop_profile:0.0001777075231075287 - timing_per_token_ms/adv:0.004201492124063008 - timing_per_token_ms/ref:1.3386556500080538 - timing_per_token_ms/gen:4.786618137846789 - timing_per_token_ms/update_actor:1.1873421129517006 - perf/total_num_tokens:15940 - perf/time_per_step:111.82599039375782 - perf/throughput:142.5428913606991
+[0] Process start_profile start
+[0] Process start_profile elapsed 0.00012712180614471436 
+[0] Process step start
+[0] Process gen start
+
+========================================================================
+  [AsyncRollout] 18:18:08 Starting: 4 samples → 1 workers (4 samples/worker)
+========================================================================
+
+========================================================================
+  [AsyncRollout] 18:19:43 Complete: 4 samples in 94.9s
+  gen=78.3s(avg) 90.5s(max) | prefill=0.8s(avg) decode=77.4s(avg)
+  max_prefill=0.3s(ctx=6K,delta=-2K,17445tok/s) max_decode=49.3s(1337tok,0.04s/tok)
+  tool=0.1s(avg) 0.1s(max) | timeout=0/25(0.0%)
+  slowest: gen=90.5s, tool=0.1s, prompt=613tok, response=4642tok
+========================================================================
+[0] Process gen elapsed 94.94306073524058 
+[0] Process ig_kv_cache start
+[IGPO-Async] ig_tool_filter={'visit'}: kept 5 turns, skipped 24 non-matching turns
+
+================================================================
+  [IGPO-VERIFY-PRE] Round #2: PASS
+  samples=4, turns=2, async_n=2
+  All checks passed
+================================================================
+[KV-CACHE IG] Starting: 2 turns, 4 samples
+[KV-CACHE IG] COMPLETED: 2 turns, 1 info_gains, 4 samples processed
+[IGPO-Async] KV-Cache IG completed: 2 computed turns, freq=1, non-empty: 4/4, boundary_parity: ZERO_DRIFT, format_penalty: 4/29 (13.8%) (answer_penalized=4)
+[0] Process ig_kv_cache elapsed 3.6523869801312685 
+[0] Process reward start
+[IGPO-DIAG] Pre-compute_reward: ig_rw_len=4 non_empty=4 type(reward_fn)=NaiveBatchRewardManager train_reward_type=f1 has_rm_scores=True
+[IGPO-Phase1] Skipped Phase-1 scoring: rm_scores present (bsz=4), proceeding to Phase-2 IG overlay
+[IGPO-Phase2] IG post-processing: processed=4 skipped=0 total_nz_placed=5 reward_tensor_id=140004445484240 detail=[sample=0 ig_len=7 orig_len=4831 scores_len=4831 nz_positions=[4830] nz_before=0 nz_after=1 has_original_token_ids=True reward_tensor_shape=[4, 5864]]
+[IGPO-DIAG] Post-compute_reward: reward_tensor_id=140004445484240 shape=[4, 5864] non_zero=5 ig_status={'requested': True, 'applied': True}
+[0] Process reward elapsed 0.014490898698568344 
+[0] Process old_log_prob start
+[0] Process old_log_prob elapsed 2.846228154376149 
+[0] Process ref start
+[0] Process ref elapsed 2.5997926760464907 
+[0] Process adv start
+[IGPO-DIAG] Pre-verify: token_level_rewards_id=140004445484240 non_zero=5 shape=[4, 5864] same_as_reward_tensor=True
+
+================================================================
+  [IGPO-VERIFY-POST] Round #2: PASS
+  bsz=4, ig_pos=1, ig_visible=1, ig_masked=0
+  All checks passed
+================================================================
+[0] Process adv elapsed 0.08541188389062881 
+[0] Process update_actor start
+[0] Process update_actor elapsed 9.02256771735847 
+[0] Process step elapsed 113.16881421208382 
+[0] Process stop_profile start
+[0] Process stop_profile elapsed 0.0001458488404750824 
+step:2 - global_seqlen/min:20527 - global_seqlen/max:20527 - global_seqlen/minmax_diff:0 - global_seqlen/balanced_min:20527 - global_seqlen/balanced_max:20527 - global_seqlen/mean:20527.0 - actor/entropy_loss:0.9374804496765137 - outcome_score/mean:0.0 - outcome_score/max:0.0 - outcome_score/min:0.0 - igpo/reward_ig_requested:1 - igpo/reward_ig_applied:1 - igpo/ig_active_samples:1 - igpo/ig_active_ratio:0.25 - igpo/ig_total_positions:1 - igpo/f1_total_positions:4 - igpo/raw_ig_mean:-0.1098787784576416 - igpo/raw_ig_std:0.0 - igpo/raw_ig_positive_ratio:0.0 - igpo/raw_ig_negative_count:1 - igpo/raw_ig_abs_mean:0.1098787784576416 - igpo/outcome_reward_mean:-1.0 - igpo/ig_scale:10.0 - igpo/outcome_norm_abs_mean:0.30000001192092896 - igpo/ig_norm_abs_mean:0.0 - igpo/all_same_outcome_ratio:0.0 - igpo/num_groups:2 - igpo/effective_gamma_mean:0.95 - igpo/effective_gamma_min:0.95 - igpo/effective_gamma_max:0.95 - igpo/num_turns_mean:1.25 - igpo/num_turns_min:1 - igpo/num_turns_max:2 - igpo/adv_abs_mean:0.0 - igpo/adv_std:0.0 - igpo/adv_positive_ratio:0.0 - igpo/adv_ig_positions_mean:0.0 - igpo/adv_f1_positions_mean:0.0 - actor/kl_loss:0.0 - actor/kl_coef:0.001 - actor/ratio_mean:1.0 - actor/ratio_std:0.0 - actor/ratio_max:1.0 - actor/pg_loss:0.0 - actor/pg_clipfrac:0.0 - actor/ppo_kl:0.0 - actor/pg_clipfrac_lower:0.0 - actor/grad_norm:0.0 - perf/mfu/actor:0.38171375122607804 - perf/max_memory_allocated_gb:97.96550130844116 - perf/max_memory_reserved_gb:101.310546875 - perf/cpu_memory_used_gb:171.71805953979492 - actor/lr:1e-06 - train/turns/mean:7.25 - train/turns/median:7.5 - train/acc:0.0 - training/global_step:2 - training/epoch:0 - critic/score/mean:-1.0274696350097656 - critic/score/max:-1.0 - critic/score/min:-1.1098787784576416 - critic/rewards/mean:-1.0274696350097656 - critic/rewards/max:-1.0 - critic/rewards/min:-1.1098787784576416 - critic/advantages/mean:0.0 - critic/advantages/max:0.0 - critic/advantages/min:0.0 - critic/returns/mean:0.0 - critic/returns/max:0.0 - critic/returns/min:0.0 - response_length/mean:4550.25 - response_length/max:5864.0 - response_length/min:2864.0 - response_length/clip_ratio:0.25 - response_length_non_aborted/mean:4550.25 - response_length_non_aborted/max:5864.0 - response_length_non_aborted/min:2864.0 - response_length_non_aborted/clip_ratio:0.25 - response/aborted_ratio:0.0 - prompt_length/mean:581.5 - prompt_length/max:613.0 - prompt_length/min:550.0 - prompt_length/clip_ratio:0.5 - num_turns/min:5 - num_turns/max:9 - num_turns/mean:7.25 - timing_s/start_profile:0.00012712180614471436 - timing_s/gen:94.94306073524058 - timing_s/ig_kv_cache:3.6523869801312685 - timing_s/reward:0.014490898698568344 - timing_s/old_log_prob:2.846228154376149 - timing_s/ref:2.5997926760464907 - timing_s/adv:0.08541188389062881 - timing_s/update_actor:9.02256771735847 - timing_s/step:113.16881421208382 - timing_s/stop_profile:0.0001458488404750824 - timing_per_token_ms/adv:0.004160953080851016 - timing_per_token_ms/ref:0.1266523445241141 - timing_per_token_ms/gen:5.216365075283807 - timing_per_token_ms/update_actor:0.4395463398138291 - perf/total_num_tokens:20527 - perf/time_per_step:113.16881421208382 - perf/throughput:181.38389222256419
+[0] Process start_profile start
+[0] Process start_profile elapsed 0.000169338658452034 
+[0] Process step start
+[0] Process gen start
+
+========================================================================
+  [AsyncRollout] 18:20:02 Starting: 4 samples → 1 workers (4 samples/worker)
+========================================================================
+
+========================================================================
+  [AsyncRollout] 18:24:06 Complete: 4 samples in 243.9s
+  gen=61.6s(avg) 71.5s(max) | prefill=0.6s(avg) decode=61.0s(avg)
+  max_prefill=0.3s(ctx=6K,delta=-1K,16837tok/s) max_decode=31.9s(907tok,0.04s/tok)
+  tool=98.3s(avg) 166.5s(max) | timeout=0/22(0.0%)
+  slowest: gen=71.5s, tool=166.5s, prompt=601tok, response=4472tok
+========================================================================
+[0] Process gen elapsed 243.91327056847513 
+[0] Process ig_kv_cache start
+[IGPO-Async] ig_tool_filter={'visit'}: kept 4 turns, skipped 22 non-matching turns
+
+================================================================
+  [IGPO-VERIFY-PRE] Round #3: PASS
+  samples=4, turns=1, async_n=2
+  All checks passed
+================================================================
+[KV-CACHE IG] Starting: 1 turns, 4 samples
+[KV-CACHE IG] COMPLETED: 1 turns, 0 info_gains, 4 samples processed
+[IGPO-Async] KV-Cache IG completed: 1 computed turns, freq=1, non-empty: 4/4, boundary_parity: ZERO_DRIFT, format_penalty: 4/26 (15.4%) (answer_penalized=4)
+[0] Process ig_kv_cache elapsed 3.5807155650109053 
+[0] Process reward start
+[IGPO-DIAG] Pre-compute_reward: ig_rw_len=4 non_empty=4 type(reward_fn)=NaiveBatchRewardManager train_reward_type=f1 has_rm_scores=True
+[IGPO-Phase1] Skipped Phase-1 scoring: rm_scores present (bsz=4), proceeding to Phase-2 IG overlay
+[IGPO-Phase2] IG post-processing: processed=4 skipped=0 total_nz_placed=4 reward_tensor_id=140004445483680 detail=[sample=0 ig_len=4 orig_len=3050 scores_len=3050 nz_positions=[3049] nz_before=0 nz_after=1 has_original_token_ids=True reward_tensor_shape=[4, 5373]]
+[IGPO-DIAG] Post-compute_reward: reward_tensor_id=140004445483680 shape=[4, 5373] non_zero=4 ig_status={'requested': True, 'applied': True}
+[0] Process reward elapsed 0.01079210452735424 
+[0] Process old_log_prob start
+[0] Process old_log_prob elapsed 2.5166657119989395 
+[0] Process ref start
+[0] Process ref elapsed 1.8593444786965847 
+[0] Process adv start
+[IGPO-DIAG] Pre-verify: token_level_rewards_id=140004445483680 non_zero=4 shape=[4, 5373] same_as_reward_tensor=True
+
+================================================================
+  [IGPO-VERIFY-POST] Round #3: PASS
+  bsz=4, ig_pos=0, ig_visible=0, ig_masked=0
+  WARN:  [G] No IG rewards in token_level_rewards for any sample (bsz=4). All single-turn or empty IG?
+================================================================
+[IGPO-CRITICAL] ig_mask is entirely empty — grpo_info_gain has DEGRADED to standard GRPO for this batch (bsz=4, f1_positions=4, nonzero_non_f1_rewards=0)
+[0] Process adv elapsed 0.08515971526503563 
+[0] Process update_actor start
+[0] Process update_actor elapsed 7.500124027952552 
+[0] Process step elapsed 259.47075505554676 
+[0] Process stop_profile start
+[0] Process stop_profile elapsed 0.0001828167587518692 
