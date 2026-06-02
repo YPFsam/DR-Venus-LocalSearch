@@ -19,6 +19,7 @@ set +a
 
 # 强制冒烟参数
 export TOTAL_TRAINING_STEPS=5
+export SMOKE_TRAINING_STEPS=5
 export MAX_TURNS=5
 export SAVE_FREQ=5
 
@@ -69,6 +70,7 @@ source .venv/bin/activate
 set -a; source .env; set +a
 
 # 强制冒烟参数
+export SMOKE_TRAINING_STEPS=5
 export TOTAL_TRAINING_STEPS=5
 export MAX_TURNS=5
 export SAVE_FREQ=5
