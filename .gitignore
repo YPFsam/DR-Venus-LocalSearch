@@ -17,6 +17,16 @@ RL/data/wiki_passages.jsonl
 RL/data/models/
 RL/output*/
 RL/eval_log/
-RL/logs/
+RL/logs/local_search.pid
+RL/logs/local_search.log
+RL/logs/local_search_console.log
 RL/tensorboard_log/
 RL/wandb/
+
+# Checkpoints (模型权重太大，不推送)
+**/global_step_*/
+**/actor/
+**/critic/
+
+# Flash-attn downloaded wheels
+*.whl

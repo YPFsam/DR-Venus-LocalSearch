@@ -25,7 +25,9 @@ if [ "${DEBUG_SHELL:-false}" = "true" ]; then
     set -x
 fi
 
-export GRPC_PYTHON_BUILD_WITH_CYTHON=1 
+export GRPC_PYTHON_BUILD_WITH_CYTHON=1
+export TORCHDYNAMO_DISABLE=1
+export VLLM_USE_V1=1
 
 # ── Run identity (used by wandb / tensorboard / checkpoint dirs) ──────────
 # Set these to whatever you want to see in your experiment tracker.
@@ -221,6 +223,8 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.mask_tool_response=${MASK_TOOL_RESPONSE} \
     actor_rollout_ref.actor.use_kl_loss=true \
     actor_rollout_ref.actor.use_dynamic_bsz=true \
+    actor_rollout_ref.actor.use_torch_compile=false \
+    actor_rollout_ref.ref.use_torch_compile=false \
     actor_rollout_ref.actor.fsdp_config.param_offload=true \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=true \
     actor_rollout_ref.ref.fsdp_config.param_offload=true \
