@@ -1,14 +1,15 @@
 # DR-Venus-LocalSearch 部署踩坑指南
 
-> 基于 2026-06-02 在 AutoDL（A800-80GB，单卡/4卡）上的实际部署经验整理。
+> 基于 2026-06-02 在 AutoDL（A800-80GB，单卡）上的实际部署经验整理。
 > 适用于在其他 GPU 云服务商（如恒源云、矩池云、揽睿星舟等）上复现。
-> **单卡冒烟测试已通过验证，4卡待测。**
+> **单卡训练计算路径已跑通，但 checkpoint 保存失败；端到端单卡冒烟和 4 卡仍待验证。**
 
 ---
 
 ## 0. 已验证环境版本
 
-以下版本组合已在 AutoDL A800-80GB 上**实际验证通过**（单卡冒烟测试 1 step 成功）：
+以下版本组合已在 AutoDL A800-80GB 上完成过 1 step 的训练计算。由于 checkpoint 保存失败，
+它是后续排障的基准环境，不代表端到端 smoke 已通过：
 
 | 组件 | 版本 | 安装方式 |
 |------|------|----------|
@@ -32,7 +33,7 @@
 | 推荐 | 4×80GB | 256GB+ | 30GB | 100GB+ | 正式训练（131K 上下文） |
 
 **说明**：
-- 单卡 80GB 可以跑通 4B 模型的 IGPO 训练（MAX_MODEL_LEN 需降到 16384）
+- 单卡 80GB 可以跑完 4B 模型的一次 IGPO 计算（MAX_MODEL_LEN 需降到 16384）
 - 正式训练的 131K 上下文需要 4 卡（序列并行 ULYSSES_SP_SIZE=4）
 - 每个 checkpoint 约 18GB（actor 全量参数），数据盘需预留足够空间
 
@@ -135,7 +136,7 @@ nvcc --version     # e.g. CUDA 12.4
 WHEEL_URL="https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp312-cp312-linux_x86_64.whl"
 
 # 3. 下载（保留原始文件名！）
-curl -L -O -C - "$WHEEL_URL" -o /tmp/flash_attn_wheel.whl
+cd /tmp && curl -fLO -C - "$WHEEL_URL"
 # 或
 # wget "$WHEEL_URL" -O "/tmp/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp312-cp312-linux_x86_64.whl"
 
@@ -263,15 +264,18 @@ AuthenticationError: WANDB_API_KEY invalid: API key must have 40+ characters, ha
 
 **解决**：提供正确的 40+ 字符 wandb key，或在 `.env` 中改用 `LOGGER_BACKENDS="['console','tensorboard']"` 跳过 wandb。
 
-### 踩坑 5.5：训练结束后 Ray Worker 崩溃（不影响结果）
+### 踩坑 5.5：保存 checkpoint 时 Ray Worker 崩溃（根因待确认）
 
 ```
 ray.exceptions.ActorUnavailableError: The actor is unavailable: RpcError: Socket closed
 ```
 
-**原因**：训练成功完成后，Ray 清理 vLLM V1 EngineCore 后台进程时与 WorkerDict 的 RPC 断连。
+**已知事实**：异常发生在 `actor_rollout_wg.save_checkpoint()` 内部，不能当作普通退出清理。
+当前日志不足以区分主机内存 OOM、SIGSEGV 或 vLLM V1 后台进程断连。
 
-**影响**：无。训练已完成，checkpoint 已保存。多步训练时 Ray 会重用 actor 不会频繁创建/销毁，此问题不会出现。
+**影响**：本次 step 的计算已完成，但 checkpoint 未确认完整保存。必须使用
+`bash scripts/vendor_train.sh check-checkpoint` 验证 tracker、dataloader 状态和 FSDP shards。
+正式训练前需要重新执行 smoke，并回传 `logs/diagnostics_*.txt` 排查根因。
 
 ---
 
@@ -302,7 +306,7 @@ ray.exceptions.ActorUnavailableError: The actor is unavailable: RpcError: Socket
 | IGPO KV-Cache IG 计算 | ~4.6s |
 | F1 Reward 计算 | ~0.04s |
 | PPO 更新（actor+ref） | ~24.5s |
-| Checkpoint 保存 | ~5.8s |
+| Checkpoint 保存 | ~5.8s 后 actor 异常，未完成 |
 | **总计 1 step** | **~872s（14.5分钟）** |
 | **GPU 显存峰值** | **~56GB / 80GB** |
 
@@ -358,16 +362,15 @@ pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
 pip install vllm==0.8.5
 
 # 6. 安装 flash-attn 预编译 wheel（--no-deps 防止 torch 被升级！）
-curl -L -o /tmp/flash_attn.whl \
-    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp312-cp312-linux_x86_64.whl"
-pip install /tmp/flash_attn.whl --no-deps
-rm /tmp/flash_attn.whl
+WHEEL_URL="https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp312-cp312-linux_x86_64.whl"
+WHEEL_PATH="/tmp/${WHEEL_URL##*/}"
+curl -fL -C - -o "$WHEEL_PATH" "$WHEEL_URL"
+pip install "$WHEEL_PATH" --no-deps
+rm "$WHEEL_PATH"
 
 # 7. 安装项目依赖
 pip install 'trl<0.16' 'transformers>=4.56,<5' soundfile
-pip install -r requirements.txt  # 跳过 pyext（Python 3.12 不兼容）
-# 如果 requirements.txt 包含 pyext：
-# grep -v pyext requirements.txt > /tmp/req.txt && pip install -r /tmp/req.txt
+pip install -r requirements.txt  # 当前 requirements 已将 pyext 标记为可选
 
 # 8. 验证安装
 python -c "import torch; print(f'torch={torch.__version__}, cuda={torch.version.cuda}')"

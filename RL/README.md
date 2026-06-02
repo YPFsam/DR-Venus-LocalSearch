@@ -10,6 +10,10 @@ For a GPU-provider handoff, use the complete Chinese runbook:
 [`VENDOR_TRAINING_GUIDE.zh-CN.md`](VENDOR_TRAINING_GUIDE.zh-CN.md). It documents
 the one-command readiness workflow and detached formal training launcher.
 
+Before renting four GPUs, an AutoDL single-A100 profiling workflow is documented
+in [`AUTODL_SINGLE_GPU_PROFILE.zh-CN.md`](AUTODL_SINGLE_GPU_PROFILE.zh-CN.md).
+It validates one reduced RL step and prints a conservative four-GPU ETA range.
+
 The official RL checkpoint card states that RL uses
 [`Zchu/REDSearcher_RL_1K`](https://huggingface.co/datasets/Zchu/REDSearcher_RL_1K):
 1,000 curated query-answer pairs. The tracked `data/train.parquet` file contains
@@ -39,7 +43,7 @@ official online-search run. Its metrics should be reported separately.
 ## 2. Machine Requirements
 
 - Linux or WSL Ubuntu with four visible 80 GB A100/A800 GPUs.
-- Python 3.10 or newer.
+- Python 3.12 for the verified one-click installer.
 - A CUDA driver compatible with the PyTorch and vLLM builds you install.
 - Enough host RAM and disk for the chosen Wikipedia passage count.
 - Network access while downloading the model, the 1K RL data, and Wikipedia.
@@ -57,7 +61,7 @@ a formal RL run.
 
 ## 3. Quick Vendor Bootstrap
 
-After the provider has installed the NVIDIA driver and CUDA toolkit, it can use
+After the provider has installed the NVIDIA driver, it can use
 the bundled environment installer and readiness workflow:
 
 ```bash
@@ -70,9 +74,9 @@ bash scripts/vendor_train.sh ready
 `vendor_train.sh ready` downloads the official SFT checkpoint when missing,
 creates `.env` when missing, downloads and converts the official REDSearcher RL
 1K data, builds the Tantivy index when missing, benchmarks retrieval, runs the
-four-GPU preflight, and executes a one-step smoke training. It does not rebuild
-a matching existing index. The default bootstrap index contains 500,000
-passages.
+four-GPU preflight, executes a one-step smoke training, and validates the smoke
+checkpoint shards. It does not rebuild a matching existing index. The default
+bootstrap index contains 500,000 passages.
 
 After the smoke run succeeds, launch detached formal training:
 
@@ -94,21 +98,17 @@ source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 ```
 
-Install a CUDA-compatible PyTorch and vLLM stack first, then install the project
-dependencies. Follow the current
-[vLLM GPU installation guide](https://docs.vllm.ai/en/stable/getting_started/installation/gpu/)
-when choosing wheels for the target machine.
+The bundled installer pins the stack verified by the single-GPU A800 smoke run
+and installs a prebuilt `flash-attn` wheel. This avoids an expensive source
+build on the provider machine:
 
 ```bash
-pip install vllm
-pip install flash-attn --no-build-isolation
-pip install -r requirements.txt
-pip install -e .
+bash scripts/install_vendor_env.sh
 ```
 
-If `flash-attn` installation fails, verify that the CUDA toolkit, compiler, and
-installed PyTorch ABI match before retrying. The runtime preflight checks the
-Python packages needed by this project.
+For a custom stack, set `VLLM_SPEC` and `FLASH_ATTN_WHEEL_URL` together. The
+wheel must match the Python, CUDA and PyTorch ABI. The runtime preflight checks
+the packages needed by this project.
 
 ## 5. Download the Official SFT Checkpoint
 
@@ -296,9 +296,10 @@ diagnosing retrieval behavior. Rollout traces are stored under
 
 ## 10. Resume and Monitor Training
 
-The default `RESUME_MODE=auto` resumes from the newest
-`OUTPUT/global_step_N/` checkpoint when the same `OUTPUT` directory is
-preserved. Each checkpoint contains actor shards, dataloader state, and IGPO
+The default `RESUME_MODE=auto` resumes from the checkpoint named by
+`OUTPUT/latest_checkpointed_iteration.txt` when the same `OUTPUT` directory is
+preserved. A leftover `global_step_N/` directory without that tracker is not a
+valid resume point. Each checkpoint contains actor shards, dataloader state, and IGPO
 warmup state. The default `SAVE_FREQ=5` writes one checkpoint every five
 training steps. `MAX_LOCAL_CKPT_TO_KEEP=2` retains the newest two complete
 checkpoints across process restarts to control disk usage. Actor and critic
@@ -308,6 +309,12 @@ To resume automatically:
 
 ```bash
 bash train_igpo.sh
+```
+
+To validate the newest formal checkpoint before resuming:
+
+```bash
+bash scripts/vendor_train.sh check-checkpoint
 ```
 
 To select an explicit checkpoint:
@@ -392,8 +399,8 @@ long-horizon run.
 
 Run the diagnostics script and send the generated text file together with the
 relevant TensorBoard or W&B run link. It reports package versions, GPU status,
-disk and RAM usage, local-search health, and recent logs without printing
-`.env`:
+disk and RAM usage, cgroup OOM counters, Ray worker errors, local-search health,
+and recent logs without printing `.env`:
 
 ```bash
 bash scripts/collect_diagnostics.sh

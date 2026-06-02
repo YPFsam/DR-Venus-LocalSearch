@@ -31,6 +31,7 @@ load_config() {
     SMOKE_TRAINING_STEPS=${SMOKE_TRAINING_STEPS:-1}
     SMOKE_MAX_TURNS=${SMOKE_MAX_TURNS:-5}
     SMOKE_GPU_MEMORY_UTILIZATION=${SMOKE_GPU_MEMORY_UTILIZATION:-0.75}
+    SMOKE_SAVE_FREQ=${SMOKE_SAVE_FREQ:-1}
     TRAIN_TMUX_SESSION=${TRAIN_TMUX_SESSION:-drvenus-train}
     TENSORBOARD_TMUX_SESSION=${TENSORBOARD_TMUX_SESSION:-drvenus-tensorboard}
     TENSORBOARD_LOG_DIR=${TENSORBOARD_LOG_DIR:-tensorboard_log}
@@ -40,6 +41,15 @@ load_config() {
 fail() {
     echo "ERROR: $*" >&2
     exit 1
+}
+
+check_checkpoint() {
+    local output_dir="$1"
+    if [ -x "$VENV_DIR/bin/python" ]; then
+        "$VENV_DIR/bin/python" scripts/check_checkpoint.py --output_dir "$output_dir"
+    else
+        python3 scripts/check_checkpoint.py --output_dir "$output_dir"
+    fi
 }
 
 ensure_environment() {
@@ -148,7 +158,9 @@ run_smoke() {
     TOTAL_TRAINING_STEPS="$SMOKE_TRAINING_STEPS" \
     MAX_TURNS="$SMOKE_MAX_TURNS" \
     GPU_MEMORY_UTILIZATION="$SMOKE_GPU_MEMORY_UTILIZATION" \
+    SAVE_FREQ="$SMOKE_SAVE_FREQ" \
         bash train_igpo.sh
+    check_checkpoint "$SMOKE_OUTPUT"
 }
 
 run_training() {
@@ -221,10 +233,23 @@ show_status() {
         echo
     fi
     latest_checkpoint=""
+    latest_partial_checkpoint=""
     if [ -d "$OUTPUT" ]; then
-        latest_checkpoint="$(find "$OUTPUT" -maxdepth 1 -type d -name 'global_step_*' | sort -V | tail -n 1)"
+        latest_partial_checkpoint="$(find "$OUTPUT" -maxdepth 1 -type d -name 'global_step_*' | sort -V | tail -n 1)"
+        if [ -f "$OUTPUT/latest_checkpointed_iteration.txt" ]; then
+            latest_step="$(cat "$OUTPUT/latest_checkpointed_iteration.txt" 2>/dev/null || true)"
+            if [[ "$latest_step" =~ ^[0-9]+$ ]]; then
+                latest_checkpoint="$OUTPUT/global_step_$latest_step"
+            fi
+        fi
     fi
-    echo "Latest checkpoint: ${latest_checkpoint:-none}"
+    echo "Latest resumable checkpoint: ${latest_checkpoint:-none}"
+    if [ -n "$latest_checkpoint" ]; then
+        check_checkpoint "$OUTPUT" || true
+    fi
+    if [ -n "$latest_partial_checkpoint" ] && [ "$latest_partial_checkpoint" != "$latest_checkpoint" ]; then
+        echo "WARNING: checkpoint-like directory exists but is not marked resumable: $latest_partial_checkpoint"
+    fi
     if [ -f "$OUTPUT/training.log" ]; then
         echo
         echo "Last 30 training log lines:"
@@ -273,6 +298,7 @@ Individual commands:
   evaluate           Run the local retrieval benchmark.
   preflight          Validate packages, model, data, retrieval, and four GPUs.
   smoke              Run one short smoke training.
+  check-checkpoint   Validate the latest resumable formal checkpoint.
   train              Start or auto-resume formal training in the foreground.
   stop-training      Stop the managed training tmux session.
   logs               Follow the formal training log.
@@ -293,6 +319,7 @@ case "${1:-}" in
     evaluate) evaluate_retrieval ;;
     preflight) run_preflight ;;
     smoke) run_smoke ;;
+    check-checkpoint) check_checkpoint "$OUTPUT" ;;
     train|resume) run_training ;;
     launch) launch_training ;;
     stop-training) stop_training ;;

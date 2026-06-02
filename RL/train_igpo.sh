@@ -26,13 +26,13 @@ if [ "${DEBUG_SHELL:-false}" = "true" ]; then
 fi
 
 export GRPC_PYTHON_BUILD_WITH_CYTHON=1
-export TORCHDYNAMO_DISABLE=1
-export VLLM_USE_V1=1
+export TORCHDYNAMO_DISABLE=${TORCHDYNAMO_DISABLE:-1}
+export VLLM_USE_V1=${VLLM_USE_V1:-1}
 
 # ── Run identity (used by wandb / tensorboard / checkpoint dirs) ──────────
 # Set these to whatever you want to see in your experiment tracker.
 export project_name=${PROJECT_NAME:-"dr-venus-local-rl"}
-export RAY_memory_monitor_refresh_ms=0
+export RAY_memory_monitor_refresh_ms=${RAY_MEMORY_MONITOR_REFRESH_MS:-0}
 export PYTHONFAULTHANDLER=1
 export TORCH_DISABLE_ADDR2LINE=1
 export NCCL_DEBUG=WARN
@@ -53,7 +53,7 @@ export TRAIN_FILE=${TRAIN_FILE:-"data/redsearcher_rl_1k.parquet"}
 export VAL_FILE=${VAL_FILE:-"data/test.parquet"}
 export EXPECTED_TRAIN_ROWS=${EXPECTED_TRAIN_ROWS:-1000}
 export _GPU_NUM=${NUM_GPUS:-4}
-export LOGGER_BACKENDS=${LOGGER_BACKENDS:-"['console','tensorboard','wandb']"}
+export LOGGER_BACKENDS=${LOGGER_BACKENDS:-"['console','tensorboard']"}
 export SAVE_FREQ=${SAVE_FREQ:-5}
 export RESUME_MODE=${RESUME_MODE:-"auto"}
 export RESUME_FROM_PATH=${RESUME_FROM_PATH:-""}
@@ -285,6 +285,18 @@ if [ "$EXIT_CODE" -ne 0 ]; then
     echo "=== nvidia-smi ===" >> "${OUTPUT}/training.log"
     nvidia-smi >> "${OUTPUT}/training.log" 2>&1
     echo "=== cgroup memory ===" >> "${OUTPUT}/training.log"
-    cat /sys/fs/cgroup/memory/memory.oom_control >> "${OUTPUT}/training.log" 2>/dev/null
+    for memory_file in \
+        /sys/fs/cgroup/memory.events \
+        /sys/fs/cgroup/memory.current \
+        /sys/fs/cgroup/memory.max \
+        /sys/fs/cgroup/memory.peak \
+        /sys/fs/cgroup/memory/memory.oom_control; do
+        if [ -f "$memory_file" ]; then
+            echo "--- $memory_file ---" >> "${OUTPUT}/training.log"
+            cat "$memory_file" >> "${OUTPUT}/training.log" 2>/dev/null
+        fi
+    done
+    echo "Writing extended diagnostics under logs/ ..." | tee -a "${OUTPUT}/training.log"
+    bash scripts/collect_diagnostics.sh || true
 fi
 exit "$EXIT_CODE"

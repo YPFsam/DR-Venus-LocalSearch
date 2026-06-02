@@ -6,6 +6,9 @@ checkpoint 开始训练本仓库的 RL 阶段。默认方案使用 4 张 80 GB A
 REDSearcher RL 1K 数据和本地 Tantivy 检索，不依赖 Serper、Jina 或外部 LLM
 judge。
 
+如果需要在租用 4 卡机器前先用 AutoDL 单张 A100 做预算验证，请参考
+[`AUTODL_SINGLE_GPU_PROFILE.zh-CN.md`](AUTODL_SINGLE_GPU_PROFILE.zh-CN.md)。
+
 ## 1. 供应商需要准备的机器
 
 建议使用原生 Ubuntu Linux，不建议把正式付费训练放在 WSL 中。
@@ -16,17 +19,16 @@ judge。
 |---|---|
 | GPU | 4 x 80 GB NVIDIA A100 或 A800 |
 | 系统 | Ubuntu 22.04 或兼容 Linux |
-| Python | 3.10 或更高版本 |
+| Python | 3.12（默认一键脚本使用已验证的 3.12 wheel） |
 | 主机内存 | 至少 128 GiB，建议 256 GiB |
 | 可用磁盘 | 至少 300 GiB，建议预留 500 GiB |
 | 网络 | 准备阶段能够访问 GitHub 和 Hugging Face |
 | 基础软件 | `git`、`curl`、`tmux`、编译工具、NVIDIA 驱动、CUDA toolkit |
 
-`flash-attn` 需要与 PyTorch 兼容的 CUDA toolkit。开始前请确认以下命令均可执行：
+默认脚本安装已验证的 `flash-attn` 预编译 wheel，避免在供应商机器上耗时编译。开始前请确认以下命令均可执行：
 
 ```bash
 nvidia-smi
-nvcc --version
 python3 --version
 ```
 
@@ -61,9 +63,9 @@ source .venv/bin/activate
 1. 检查 Linux、Python 和 `nvidia-smi`。
 2. 安装 `uv`。
 3. 创建项目本地 `.venv`。
-4. 使用 [vLLM 官方 GPU 安装文档](https://docs.vllm.ai/en/stable/getting_started/installation/gpu/)
-   推荐方式安装 GPU wheel：`uv pip install vllm --torch-backend=auto`。
-5. 编译安装 `flash-attn`。
+4. 安装已验证的 `vllm==0.8.5` GPU stack。
+5. 下载并安装与 Python 3.12、PyTorch 2.6 匹配的 `flash-attn==2.7.4.post1`
+   预编译 wheel。
 6. 安装项目依赖和本地 `igpo` 包。
 7. 检查 PyTorch 是否能够访问 CUDA。
 
@@ -74,10 +76,12 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-如果需要固定 vLLM 版本，可显式传入：
+如果需要有意识地更换 vLLM 版本或 `flash-attn` wheel，可显式传入：
 
 ```bash
-VLLM_SPEC='vllm==<verified-version>' bash scripts/install_vendor_env.sh
+VLLM_SPEC='vllm==<verified-version>' \
+FLASH_ATTN_WHEEL_URL='<matching-wheel-url>' \
+  bash scripts/install_vendor_env.sh
 ```
 
 ## 3. 一键准备资源并做 Smoke Test
@@ -99,6 +103,8 @@ bash scripts/vendor_train.sh ready
 6. 对完整 1,000 条 RL 问题执行本地检索质量和性能测试。
 7. 检查 Python 依赖、SFT checkpoint、训练数据、4 张 GPU、TP/SP 参数和检索服务。
 8. 使用独立目录 `output_smoke/` 执行 1 个训练 step、最多 5 轮工具调用的 smoke test。
+9. 校验 smoke checkpoint 的 tracker、dataloader 状态和每个 FSDP shard；保存失败时 `ready`
+   会直接失败，不允许进入正式训练。
 
 首次准备需要下载 checkpoint 和 Wikipedia，请预留时间。索引采用 staging 目录构建：
 只有全部文件构建成功后才会替换正式索引；中途中断不会留下可被训练误用的半成品。
@@ -159,7 +165,12 @@ MAX_CRITIC_CKPT_TO_KEEP=2
 bash scripts/vendor_train.sh launch
 ```
 
-脚本就会从最新 `output/global_step_N/` 自动续训。不要将 `output_smoke/` 用于正式训练。
+脚本只会从 `latest_checkpointed_iteration.txt` 标记的完整 `output/global_step_N/` 自动续训。
+不要将残留目录或 `output_smoke/` 用于正式训练。可手动检查：
+
+```bash
+bash scripts/vendor_train.sh check-checkpoint
+```
 
 ## 6. 实时查看训练曲线
 
@@ -183,12 +194,11 @@ ssh -N -L 6006:127.0.0.1:6006 <user>@<gpu-server>
 http://localhost:6006
 ```
 
-### 6.2 W&B：默认启用，网页远程监控
+### 6.2 W&B：可选的网页远程监控
 
-默认同时启用 `console`、`tensorboard` 和 `wandb`。`.env.example` 中已预置 API Key，
-`bootstrap_vendor.sh` 会自动复制到 `.env`。供应商不需要额外配置 W&B。
-
-如需使用自己的 W&B 账号，在 `RL/.env` 中替换 `WANDB_API_KEY` 即可。
+默认启用 `console` 和 `tensorboard`，不在仓库内存放任何 W&B 凭据。如需使用 W&B，
+在 GPU 机器的私有 `RL/.env` 中设置 `WANDB_API_KEY`，并将
+`LOGGER_BACKENDS` 改为 `['console','tensorboard','wandb']`。
 
 不要把 `.env` 提交到 Git。
 
@@ -219,6 +229,9 @@ bash scripts/vendor_train.sh evaluate
 
 # 重新执行 GPU 和配置预检
 bash scripts/vendor_train.sh preflight
+
+# 校验最新的正式 checkpoint 是否可用于续训
+bash scripts/vendor_train.sh check-checkpoint
 
 # 停止脚本管理的检索服务
 bash scripts/vendor_train.sh stop-search
